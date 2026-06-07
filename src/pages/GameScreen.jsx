@@ -3,26 +3,44 @@ import SkillCards from '../components/SkillCards';
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 
+// CONFIGURATION: Adjust daily commercial constraints here
+const MAX_DAILY_ADS = 3;
+
 export default function GameScreen({ playerColor, onGameOver }) {
   const canvasRef = useRef(null);
   
+  // Game Stats States
   const [score, setScore] = useState(0);
   const [distance, setDistance] = useState(0); 
   const [coins, setCoins] = useState(0);
 
+  // Power-up Stocks
   const [shieldCount, setShieldCount] = useState(0);
   const [reviveCount, setReviveCount] = useState(0);
 
+  // Card Skill States
   const [showCards, setShowCards] = useState(false);
   const [randomCards, setRandomCards] = useState([]);
   const [activeSkill, setActiveSkill] = useState(null);
 
+  // --- ECONOMIC & JUICE FEATURES ---
+  const [highScores, setHighScores] = useState([]);
+  const [adOverlay, setAdOverlay] = useState(null); // 'loading' | 'playing'
+  const [adCountdown, setAdCountdown] = useState(5);
+  const [hasUsedAdRevive, setHasUsedAdRevive] = useState(false);
+  const [shakeIntensity, setShakeIntensity] = useState(0);
+  
+  // Daily cap state tracking
+  const [dailyAdsUsed, setDailyAdsUsed] = useState(0);
+
+  // Refs for loop management
   const gamePausedRef = useRef(false);
   const activeSkillRef = useRef(null);
   const nextSkillMilestoneRef = useRef(200); 
 
   const shieldCountRef = useRef(0);
   const reviveCountRef = useRef(0);
+  const shakeIntensityRef = useRef(0);
 
   const skillExpirationTimeRef = useRef(0);
   const skillTimeoutIdRef = useRef(null);
@@ -30,8 +48,56 @@ export default function GameScreen({ playerColor, onGameOver }) {
   const obstaclesRef = useRef([]);
   const coinsArrayRef = useRef([]);
   const ufosRef = useRef([]);
+  const particlesRef = useRef([]); 
 
   const canvasClickHandler = useRef(null);
+
+  // --- INITIALIZATION AND DAILY CAP ROTATION ENGINE ---
+  useEffect(() => {
+    // 1. Fetch High Scores
+    const cachedScores = JSON.parse(localStorage.getItem('runner_high_scores')) || [];
+    setHighScores(cachedScores);
+
+    // 2. Process Daily Calendar Checking for Ad Compliance
+    const todayStr = new Date().toDateString(); 
+    const savedDate = localStorage.getItem('runner_ad_date');
+    let historicalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10);
+
+    if (savedDate !== todayStr) {
+      localStorage.setItem('runner_ad_date', todayStr);
+      localStorage.setItem('runner_daily_ads_count', '0');
+      historicalCount = 0;
+    }
+    setDailyAdsUsed(historicalCount);
+  }, []);
+
+  const saveHighScore = (finalScore) => {
+    const currentScores = JSON.parse(localStorage.getItem('runner_high_scores')) || [];
+    const updated = [...currentScores, finalScore]
+      .sort((a, b) => b - a)
+      .slice(0, 3); 
+    localStorage.setItem('runner_high_scores', JSON.stringify(updated));
+    setHighScores(updated);
+  };
+
+  const triggerShake = (intensity) => {
+    shakeIntensityRef.current = intensity;
+    setShakeIntensity(intensity);
+  };
+
+  const spawnParticles = (x, y, color, count = 8) => {
+    for (let i = 0; i < count; i++) {
+      particlesRef.current.push({
+        x,
+        y,
+        vx: (Math.random() - 0.5) * 8,
+        vy: (Math.random() - 0.5) * 8,
+        radius: Math.random() * 3 + 2,
+        alpha: 1,
+        color: color
+      });
+    }
+  };
 
   const triggerCardSelection = () => {
     gamePausedRef.current = true;
@@ -54,11 +120,14 @@ export default function GameScreen({ playerColor, onGameOver }) {
     }
 
     if (skill.id === 'burst') {
+      triggerShake(12); 
       obstacles.forEach(obs => {
+        spawnParticles(obs.x, obs.y, '#fbbf24', 6);
         coinsArray.push({ x: obs.x, y: obs.y, radius: 8, color: '#fbbf24' });
       });
       obstacles.length = 0;
       ufosRef.current.forEach(ufo => {
+        spawnParticles(ufo.x, ufo.y, '#fbbf24', 12);
         coinsArray.push({ x: ufo.x, y: ufo.y, radius: 10, color: '#fbbf24' });
       });
       ufosRef.current.length = 0;
@@ -117,6 +186,51 @@ export default function GameScreen({ playerColor, onGameOver }) {
     gamePausedRef.current = false;
   };
 
+  // 📺 AD REWARD DELIVERER
+  const watchRewardedAd = () => {
+    setAdOverlay('loading');
+
+    setTimeout(() => {
+      setAdOverlay('playing');
+      setAdCountdown(5);
+
+      const interval = setInterval(() => {
+        setAdCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setAdOverlay(null);
+            setHasUsedAdRevive(true);
+            
+            const internalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10) + 1;
+            localStorage.setItem('runner_daily_ads_count', internalCount.toString());
+            setDailyAdsUsed(internalCount);
+
+            obstaclesRef.current.length = 0;
+            ufosRef.current.length = 0;
+            activeSkillRef.current = 'invisible'; 
+            setActiveSkill('Ghost Walk 👻');
+            gamePausedRef.current = false;
+
+            setTimeout(() => {
+              activeSkillRef.current = null;
+              setActiveSkill(null);
+            }, 3000);
+
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }, 1000);
+  };
+
+  const handleSkipAdRevive = () => {
+    setAdOverlay(null);
+    gamePausedRef.current = false;
+    saveHighScore(score);
+    onGameOver(score, coins); 
+  };
+
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -124,9 +238,9 @@ export default function GameScreen({ playerColor, onGameOver }) {
     canvas.height = 400;
 
     let animationFrameId;
-    let localScore = 0;
-    let localDistance = 0; 
-    let localCoins = 0;
+    let localScore = score; 
+    let localDistance = distance; 
+    let localCoins = coins;
     let isGameOver = false;
 
     let lastTime = performance.now();
@@ -150,20 +264,14 @@ export default function GameScreen({ playerColor, onGameOver }) {
     const coinsArray = coinsArrayRef.current;
     const ufos = ufosRef.current;
     
-    shieldCountRef.current = 0;
-    reviveCountRef.current = 0;
-    setShieldCount(0);
-    setReviveCount(0);
-
-    obstacles.length = 0;
-    coinsArray.length = 0;
-    ufos.length = 0;
+    setShieldCount(shieldCountRef.current);
+    setReviveCount(reviveCountRef.current);
 
     let obstacleTimer = 0;
     let spawnRate = 120;
     let coinTimer = 0;
     let sonicTimer = 0;
-    let nextUfoMilestone = 800; 
+    let nextUfoMilestone = localDistance > 0 ? Math.floor(localDistance / 800) * 800 + 800 : 800; 
 
     const handleJump = () => {
       if (gamePausedRef.current || isGameOver) return;
@@ -196,16 +304,19 @@ export default function GameScreen({ playerColor, onGameOver }) {
       if (elapsed < fpsInterval) return;
       lastTime = currentTime - (elapsed % fpsInterval);
 
-      if (gamePausedRef.current) {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.fillStyle = bgEffects.getSkyColor(Math.floor(localDistance));
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        return;
-      }
+      if (gamePausedRef.current) return;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const currentModifier = activeSkillRef.current;
+      ctx.save();
 
+      if (shakeIntensityRef.current > 0.1) {
+        const dx = (Math.random() - 0.5) * shakeIntensityRef.current;
+        const dy = (Math.random() - 0.5) * shakeIntensityRef.current;
+        ctx.translate(dx, dy);
+        shakeIntensityRef.current *= 0.9; 
+      }
+
+      const currentModifier = activeSkillRef.current;
       const rawMultiplier = 1 + Math.floor(localDistance / 200) * 0.05;
       const gameSpeedMultiplier = Math.min(rawMultiplier, 3.0); 
 
@@ -272,11 +383,12 @@ export default function GameScreen({ playerColor, onGameOver }) {
       if (currentModifier === 'sonic') {
         sonicTimer++;
         if (sonicTimer > 180) { 
+          triggerShake(5); 
           ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 4; ctx.beginPath();
           ctx.arc(player.x + player.width, player.y + player.height/2, 60, -Math.PI/2, Math.PI/2);
           ctx.stroke();
-          if (obstacles.length > 0) obstacles.splice(0, 1);
-          if (ufos.length > 0) ufos.splice(0, 1);
+          if (obstacles.length > 0) { spawnParticles(obstacles[0].x, obstacles[0].y, '#ef4444'); obstacles.splice(0, 1); }
+          if (ufos.length > 0) { spawnParticles(ufos[0].x, ufos[0].y, '#38bdf8'); ufos.splice(0, 1); }
           sonicTimer = 0;
         }
       }
@@ -309,41 +421,42 @@ export default function GameScreen({ playerColor, onGameOver }) {
         ctx.restore();
 
         if (player.x < ufo.x + ufo.width && player.x + player.width > ufo.x && player.y < ufo.y + ufo.height && player.y + player.height > ufo.y) {
-          if (currentModifier === 'invisible' || currentModifier === 'sprint') { ufos.splice(i, 1); continue; }
-          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); ufos.splice(i, 1); continue; }
+          if (currentModifier === 'invisible' || currentModifier === 'sprint') { spawnParticles(ufo.x, ufo.y, '#38bdf8'); ufos.splice(i, 1); continue; }
+          
+          triggerShake(8); 
+          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(ufo.x, ufo.y, '#22d3ee'); ufos.splice(i, 1); continue; }
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); ufos.length = 0; obstacles.length = 0;
             activeSkillRef.current = 'invisible'; setActiveSkill('Ghost Walk 👻');
             setTimeout(() => { activeSkillRef.current = null; setActiveSkill(null); }, 3000);
             continue;
           }
-          isGameOver = true; cancelAnimationFrame(animationFrameId);
-          onGameOver(Math.floor(localScore), localCoins); return;
+
+          cancelAnimationFrame(animationFrameId);
+          const dailyAdsWatched = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10);
+          if (!hasUsedAdRevive && dailyAdsWatched < MAX_DAILY_ADS) {
+            gamePausedRef.current = true;
+          } else {
+            isGameOver = true;
+            saveHighScore(Math.floor(localScore));
+            onGameOver(Math.floor(localScore), localCoins);
+          }
+          return;
         }
         if (ufo.x + ufo.width < 0) ufos.splice(i, 1);
       }
 
-      // --- 🛑 SMOOTH CURVE OBSTACLE ENGINE ---
       obstacleTimer += gameSpeedMultiplier;
       const currentSpawnRate = currentModifier === 'slow' ? spawnRate * 1.5 : spawnRate;
       
       if (obstacleTimer > currentSpawnRate) {
-        let obsWidth = 20;
-        let obsHeight = 30;
-        let obsColor = '#ef4444'; 
-        let obsBaseSpeed = 7; 
+        let obsWidth = 20; let obsHeight = 30; let obsColor = '#ef4444'; let obsBaseSpeed = 7; 
 
-        // Check if player has run far enough for slow hazards (>200m)
         const canSpawnSlow = localDistance >= 200;
         const isSlowObstacle = canSpawnSlow && Math.random() < 0.25;
 
         if (isSlowObstacle) {
-          obsWidth = 32;
-          obsHeight = 24; 
-          obsColor = '#06b6d4'; 
-          
-          // 📈 DYNAMIC SPEED SMOOTHING
-          // Starts near 4.8 speed at 200m, slowly decreasing to a creeping 2.8 speed as you cross 700m
+          obsWidth = 32; obsHeight = 24; obsColor = '#06b6d4'; 
           const progressionFactor = Math.min(1, (localDistance - 200) / 500);
           obsBaseSpeed = 4.8 - (progressionFactor * 2.0); 
         } else {
@@ -385,21 +498,31 @@ export default function GameScreen({ playerColor, onGameOver }) {
         ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
 
         if (player.x < obs.x + obs.width && player.x + player.width > obs.x && player.y < obs.y + obs.height && player.y + player.height > obs.y) {
-          if (currentModifier === 'invisible' || currentModifier === 'sprint') { obstacles.splice(i, 1); continue; }
-          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); obstacles.splice(i, 1); continue; }
+          if (currentModifier === 'invisible' || currentModifier === 'sprint') { spawnParticles(obs.x, obs.y, obs.color); obstacles.splice(i, 1); continue; }
+          
+          triggerShake(8); 
+          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(obs.x, obs.y, '#22d3ee'); obstacles.splice(i, 1); continue; }
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); obstacles.length = 0; ufos.length = 0;
             activeSkillRef.current = 'invisible'; setActiveSkill('Ghost Walk 👻');
             setTimeout(() => { activeSkillRef.current = null; setActiveSkill(null); }, 3000);
             continue;
           }
-          isGameOver = true; cancelAnimationFrame(animationFrameId);
-          onGameOver(Math.floor(localScore), localCoins); return;
+
+          cancelAnimationFrame(animationFrameId);
+          const dailyAdsWatched = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10);
+          if (!hasUsedAdRevive && dailyAdsWatched < MAX_DAILY_ADS) {
+            gamePausedRef.current = true;
+          } else {
+            isGameOver = true;
+            saveHighScore(Math.floor(localScore));
+            onGameOver(Math.floor(localScore), localCoins);
+          }
+          return;
         }
         if (obs.x + obs.width < 0) obstacles.splice(i, 1);
       }
 
-      // Coins Engine
       coinTimer++;
       if (coinTimer > (currentModifier === 'lucky' ? 25 : 80)) {
         coinsArray.push({ x: canvas.width, y: groundY - 45 - Math.random() * 80, radius: 8, color: '#fbbf24' });
@@ -418,11 +541,25 @@ export default function GameScreen({ playerColor, onGameOver }) {
         if (player.x < coin.x + coin.radius && player.x + player.width > coin.x - coin.radius && player.y < coin.y + coin.radius && player.y + player.height > coin.y - coin.radius) {
           localCoins += (currentModifier === 'double' ? 2 : 1);
           localScore += (currentModifier === 'double' ? 50 : 25);
+          
+          triggerShake(1.5); 
+          spawnParticles(coin.x, coin.y, '#fbbf24', 3);
+
           setCoins(localCoins);
           coinsArray.splice(i, 1);
           continue;
         }
         if (coin.x < 0) coinsArray.splice(i, 1);
+      }
+
+      for (let i = particlesRef.current.length - 1; i >= 0; i--) {
+        const p = particlesRef.current[i];
+        p.x += p.vx; p.y += p.vy; p.alpha -= 0.03;
+        ctx.save();
+        ctx.globalAlpha = p.alpha; ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        if (p.alpha <= 0) particlesRef.current.splice(i, 1);
       }
 
       const baseDistanceStep = currentModifier === 'sprint' ? 0.4 : 0.15;
@@ -437,6 +574,8 @@ export default function GameScreen({ playerColor, onGameOver }) {
         nextSkillMilestoneRef.current += 200; 
         triggerCardSelection();
       }
+
+      ctx.restore(); 
     };
 
     update();
@@ -446,10 +585,12 @@ export default function GameScreen({ playerColor, onGameOver }) {
       cancelAnimationFrame(animationFrameId); 
       if (skillTimeoutIdRef.current) clearTimeout(skillTimeoutIdRef.current); 
     };
-  }, [onGameOver, playerColor]);
+  }, [onGameOver, playerColor, adOverlay, hasUsedAdRevive]); 
 
   return (
     <div className="relative flex flex-col items-center select-none w-full max-w-3xl">
+      
+      {/* Game HUD */}
       <div className="absolute top-4 left-4 right-4 flex justify-between items-center bg-slate-950/70 pointer-events-none px-4 py-2 rounded-xl backdrop-blur-xs border border-white/10 z-10 text-xs sm:text-sm font-bold tracking-wide">
         <div className="flex items-center gap-3">
           <div className="text-cyan-400">🚩 DISTANCE: <span className="text-white">{distance}m</span></div>
@@ -474,6 +615,81 @@ export default function GameScreen({ playerColor, onGameOver }) {
         onClick={() => canvasClickHandler.current && canvasClickHandler.current()}
         className="w-full aspect-[2/1] rounded-2xl shadow-2xl border border-slate-700 bg-slate-950 touch-none cursor-pointer"
       />
+
+      {/* 🏅 LEADERBOARD OVERLAY (Relocated cleanly underneath the top right HUD segment) */}
+      {highScores.length > 0 && (
+        <div className="absolute right-4 top-16 bg-slate-950/80 border border-white/10 backdrop-blur-md text-white p-3 rounded-xl pointer-events-none text-[11px] z-10 w-32 shadow-xl">
+          <div className="text-amber-400 font-extrabold mb-1.5 tracking-wider border-b border-white/10 pb-0.5 text-right">🏆 TOP RUNS</div>
+          <ol className="list-decimal list-inside space-y-0.5 font-mono opacity-90 text-right">
+            {highScores.map((hs, i) => (
+              <li key={i} className={i === 0 ? "text-yellow-300 font-bold" : ""}>
+                <span className="text-slate-400 mr-1">#{i + 1}</span>
+                {hs}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* 📺 INTERACTIVE REWARDED VIDEO ADS INTERCEPTION OVERLAY */}
+      {gamePausedRef.current && !activeSkill && !showCards && !adOverlay && !hasUsedAdRevive && dailyAdsUsed < MAX_DAILY_ADS && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-xs z-20 rounded-2xl">
+          <div className="text-center p-6 max-w-sm bg-slate-900 border border-white/10 rounded-2xl shadow-2xl">
+            <p className="text-white font-black text-xl mb-1 flex items-center justify-center gap-2">💥 CRASHED!</p>
+            <p className="text-slate-400 text-xs mb-3">You were doing great! Save your progress and keep this run alive.</p>
+            
+            <p className="text-[10px] text-purple-400 font-semibold mb-4 tracking-wide uppercase">
+              Daily Revives Remaining: {MAX_DAILY_ADS - dailyAdsUsed} / {MAX_DAILY_ADS}
+            </p>
+            
+            <div className="flex flex-col gap-2">
+              <button 
+                onClick={watchRewardedAd}
+                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs px-4 py-3 rounded-xl shadow-lg border border-purple-400/30 transition-all transform active:scale-95 animate-pulse"
+              >
+                📺 WATCH AD TO REVIVE
+              </button>
+              <button 
+                onClick={handleSkipAdRevive}
+                className="w-full text-slate-500 hover:text-slate-400 font-bold text-xs py-2 transition-colors"
+              >
+                No thanks, end run
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REWARDED AD SPONSORED EMULATOR SCREEN */}
+      {adOverlay && (
+        <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center rounded-2xl z-50 p-6 border border-slate-800">
+          {adOverlay === 'loading' ? (
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+              <p className="text-indigo-300 text-xs font-bold tracking-wide animate-pulse">BUFFERING SPONSORED CONTENT...</p>
+            </div>
+          ) : (
+            <div className="w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl p-6 text-center shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 bg-indigo-600 text-white font-black text-[9px] px-2 py-0.5 rounded-br-md">SPONSORED VIDEO AD</div>
+              <p className="text-white text-base font-black tracking-wide mt-2">Unlock a Free Continuation Run?</p>
+              
+              <div className="my-6 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-full bg-indigo-500/10 border-4 border-indigo-500 flex items-center justify-center text-3xl text-indigo-400 font-black font-mono animate-scale">
+                  {adCountdown}
+                </div>
+              </div>
+
+              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div 
+                  className="bg-indigo-500 h-full transition-all duration-1000 ease-linear" 
+                  style={{ width: `${(adCountdown / 5) * 100}%` }}
+                ></div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {showCards && <SkillCards visibleCards={randomCards} onSelectSkill={handleSelectSkill} />}
     </div>
   );
