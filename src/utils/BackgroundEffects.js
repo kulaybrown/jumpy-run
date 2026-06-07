@@ -1,3 +1,7 @@
+/**
+ * BackgroundEffects Class
+ * Manages the data, logic, and rendering for background aesthetic events.
+ */
 export class BackgroundEffects {
   constructor(canvasWidth, groundY) {
     this.canvasWidth = canvasWidth;
@@ -11,7 +15,7 @@ export class BackgroundEffects {
       height: 25,
       speed: 6,
       color: '#ef4444',
-      state: 'WAITING' // 'WAITING', 'FLYING', 'FINISHED'
+      state: 'WAITING'
     };
 
     // 2. UFO Configurations
@@ -20,25 +24,44 @@ export class BackgroundEffects {
       y: 60,
       width: 50,
       height: 20,
-      state: 'HIDDEN', // 'HIDDEN', 'ENTERING', 'STAYING', 'EXITING', 'COOLDOWN'
+      state: 'HIDDEN',
       stayTimer: 0,
       color: '#a855f7'
     };
   }
 
   /**
-   * Calculates a smooth Day/Sunset/Night transition color based on the current distance.
+   * Generates a completely fluid Day/Sunset/Night color transition using HSL values.
+   * Smoothly cycles from 0m to 1000m distance intervals.
    */
   getSkyColor(distance) {
-    const cycleFactor = Math.sin((distance / 1000) * Math.PI * 2);
+    // Convert distance into a continuous radial angle (0 to 2*PI every 1000 meters)
+    const angle = (distance / 1000) * Math.PI * 2;
+    
+    // Normalizes sine wave to oscillate smoothly between 0 (Night) and 1 (Day)
+    const timeFactor = (Math.sin(angle) + 1) / 2; 
+    
+    // Detects when the sun is crossing the horizon line (Sunset/Sunrise indicator)
+    const horizonFactor = Math.max(0, Math.cos(angle)); 
 
-    if (cycleFactor > 0.5) {
-      return '#38bdf8'; // DAY
-    } else if (cycleFactor <= 0.5 && cycleFactor > -0.2) {
-      return '#f97316'; // SUNSET
-    } else {
-      return '#0f172a'; // NIGHT
+    // 🎨 Dynamic HSL Interpolation Math:
+    // Hue shifts from 240 (Deep Midnight Blue) up to 198 (Bright Sky Blue)
+    const hue = 240 - (timeFactor * 42) + (horizonFactor * 15);
+    
+    // Saturation drops slightly during high noon, but spikes during sunset orange phases
+    const saturation = 60 + (timeFactor * 25) + (horizonFactor * 15);
+    
+    // Lightness moves from 8% (Dark Night) up to 60% (Bright Clear Day)
+    // Sunset drops into warm ranges using the horizon factor calculation
+    const lightness = 8 + (timeFactor * 52) - (horizonFactor * 5);
+
+    // If we are deep in a sunset pocket, gently inject warm orange/pink tones
+    if (timeFactor < 0.5 && horizonFactor > 0.3) {
+      const sunsetBlend = horizonFactor;
+      return `hsl(${25 + (sunsetBlend * 15)}, ${saturation}%, ${lightness + 10}%)`;
     }
+
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
   }
 
   /**
@@ -64,9 +87,8 @@ export class BackgroundEffects {
       }
     }
 
-    // --- EVENT B: UFO LOGIC (Triggers every 500m of distance) ---
-    // If the player is past 0 and hits a multiple of 500 meters, bring out the UFO
-    if (currentDistance > 0 && currentDistance % 500 === 0 && this.ufo.state === 'HIDDEN') {
+    // --- EVENT B: UFO LOGIC (Triggers every 800m of distance) ---
+    if (currentDistance > 0 && currentDistance % 800 === 0 && this.ufo.state === 'HIDDEN') {
       this.ufo.state = 'ENTERING';
       this.ufo.x = -80;
     }
@@ -88,7 +110,6 @@ export class BackgroundEffects {
           this.ufo.state = 'EXITING';
         }
         
-        // Tractor Beam Effect
         ctx.fillStyle = 'rgba(34, 211, 238, 0.25)';
         ctx.beginPath();
         ctx.moveTo(this.ufo.x + this.ufo.width / 2, this.ufo.y + this.ufo.height);
@@ -104,7 +125,6 @@ export class BackgroundEffects {
         }
       }
       
-      // Release cooldown once player runs past the exact trigger meter mark
       if (this.ufo.state === 'COOLDOWN' && currentDistance % 500 !== 0) {
         this.ufo.state = 'HIDDEN';
       }
