@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from 'react';
-import SkillCards from '../components/SkillCards';
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 
@@ -23,12 +22,13 @@ export default function GameScreen({ playerColor, onGameOver }) {
   const [randomCards, setRandomCards] = useState([]);
   const [activeSkill, setActiveSkill] = useState(null);
 
-  // --- ECONOMIC & JUICE FEATURES ---
+  // --- ECONOMIC, OVERLAY & JUICE FEATURES ---
   const [highScores, setHighScores] = useState([]);
   const [adOverlay, setAdOverlay] = useState(null); // 'loading' | 'playing'
   const [adCountdown, setAdCountdown] = useState(5);
   const [hasUsedAdRevive, setHasUsedAdRevive] = useState(false);
   const [shakeIntensity, setShakeIntensity] = useState(0);
+  const [isGameOverScreen, setIsGameOverScreen] = useState(false);
   
   // Daily cap state tracking
   const [dailyAdsUsed, setDailyAdsUsed] = useState(0);
@@ -54,11 +54,9 @@ export default function GameScreen({ playerColor, onGameOver }) {
 
   // --- INITIALIZATION AND DAILY CAP ROTATION ENGINE ---
   useEffect(() => {
-    // 1. Fetch High Scores
     const cachedScores = JSON.parse(localStorage.getItem('runner_high_scores')) || [];
     setHighScores(cachedScores);
 
-    // 2. Process Daily Calendar Checking for Ad Compliance
     const todayStr = new Date().toDateString(); 
     const savedDate = localStorage.getItem('runner_ad_date');
     let historicalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10);
@@ -226,12 +224,35 @@ export default function GameScreen({ playerColor, onGameOver }) {
 
   const handleSkipAdRevive = () => {
     setAdOverlay(null);
-    gamePausedRef.current = false;
     saveHighScore(score);
-    onGameOver(score, coins); 
+    setIsGameOverScreen(true);
+  };
+
+  const handleRestartRun = () => {
+    // Completely purge active running metrics to initialize clean canvas context loop state
+    obstaclesRef.current = [];
+    coinsArrayRef.current = [];
+    ufosRef.current = [];
+    particlesRef.current = [];
+    shieldCountRef.current = 0;
+    reviveCountRef.current = 0;
+    activeSkillRef.current = null;
+    nextSkillMilestoneRef.current = 200;
+    
+    setScore(0);
+    setDistance(0);
+    setCoins(0);
+    setShieldCount(0);
+    setReviveCount(0);
+    setActiveSkill(null);
+    setHasUsedAdRevive(false);
+    setIsGameOverScreen(false);
+    gamePausedRef.current = false;
   };
 
   useEffect(() => {
+    if (isGameOverScreen) return; // Halt loop tracking while displaying stats panel
+
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     canvas.width = 800;
@@ -439,7 +460,7 @@ export default function GameScreen({ playerColor, onGameOver }) {
           } else {
             isGameOver = true;
             saveHighScore(Math.floor(localScore));
-            onGameOver(Math.floor(localScore), localCoins);
+            setIsGameOverScreen(true);
           }
           return;
         }
@@ -516,7 +537,7 @@ export default function GameScreen({ playerColor, onGameOver }) {
           } else {
             isGameOver = true;
             saveHighScore(Math.floor(localScore));
-            onGameOver(Math.floor(localScore), localCoins);
+            setIsGameOverScreen(true);
           }
           return;
         }
@@ -585,7 +606,7 @@ export default function GameScreen({ playerColor, onGameOver }) {
       cancelAnimationFrame(animationFrameId); 
       if (skillTimeoutIdRef.current) clearTimeout(skillTimeoutIdRef.current); 
     };
-  }, [onGameOver, playerColor, adOverlay, hasUsedAdRevive]); 
+  }, [onGameOver, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen]); 
 
   return (
     <div className="relative flex flex-col items-center select-none w-full max-w-3xl">
@@ -616,8 +637,8 @@ export default function GameScreen({ playerColor, onGameOver }) {
         className="w-full aspect-[2/1] rounded-2xl shadow-2xl border border-slate-700 bg-slate-950 touch-none cursor-pointer"
       />
 
-      {/* 🏅 LEADERBOARD OVERLAY (Relocated cleanly underneath the top right HUD segment) */}
-      {highScores.length > 0 && (
+      {/* 🏅 LEADERBOARD OVERLAY */}
+      {highScores.length > 0 && !isGameOverScreen && (
         <div className="absolute right-4 top-16 bg-slate-950/80 border border-white/10 backdrop-blur-md text-white p-3 rounded-xl pointer-events-none text-[11px] z-10 w-32 shadow-xl">
           <div className="text-amber-400 font-extrabold mb-1.5 tracking-wider border-b border-white/10 pb-0.5 text-right">🏆 TOP RUNS</div>
           <ol className="list-decimal list-inside space-y-0.5 font-mono opacity-90 text-right">
@@ -631,8 +652,108 @@ export default function GameScreen({ playerColor, onGameOver }) {
         </div>
       )}
 
+      {/* 🎯 SKILL CARD CHOOSE MODAL OVERLAY */}
+      {showCards && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 rounded-2xl p-4">
+          <div className="text-center mb-4">
+            <h3 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 uppercase">
+              🚀 Milestone Reached!
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">Select a skill upgrade to bolster your current run</p>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-3 w-full max-w-xl px-2">
+            {randomCards.map((skill) => (
+              <button
+                key={skill.id}
+                onClick={() => handleSelectSkill(skill)}
+                className="group relative flex flex-col items-center text-center bg-slate-900/90 border border-white/10 rounded-xl p-3 hover:border-cyan-500/50 hover:bg-slate-800/80 transition-all transform hover:-translate-y-1 active:scale-95 shadow-xl overflow-hidden"
+              >
+                <div className="absolute -inset-px bg-gradient-to-b from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
+                <div className="text-3xl mb-1.5 p-2 bg-slate-950 rounded-lg group-hover:scale-110 transition-transform shadow-inner">
+                  {skill.icon}
+                </div>
+                <h4 className="text-xs font-extrabold text-white group-hover:text-cyan-400 transition-colors line-clamp-1 mb-0.5">
+                  {skill.name}
+                </h4>
+                <p className="text-[10px] leading-tight text-slate-400 group-hover:text-slate-300 transition-colors line-clamp-2 h-7 font-medium">
+                  {skill.description}
+                </p>
+                {skill.duration && (
+                  <span className="mt-2 text-[9px] font-mono tracking-wider bg-slate-950 text-cyan-400 px-1.5 py-0.5 rounded-md uppercase opacity-75">
+                    ⏱️ {(skill.duration / 1000)}s
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 💀 NEW IN-GAME GAME OVER METRICS SUMMARY PANEL OVERLAY */}
+      {isGameOverScreen && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md z-40 rounded-2xl p-6">
+          <div className="w-full max-w-md bg-slate-900/80 border border-white/10 rounded-2xl p-6 shadow-2xl text-center relative overflow-hidden animate-fade-in">
+            {/* Ambient accent banner flare */}
+            <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-rose-500 via-red-500 to-orange-500 animate-pulse" />
+            
+            <h2 className="text-2xl font-black tracking-tighter text-rose-500 uppercase mb-1">
+              🎮 RUN COMPLETED
+            </h2>
+            <p className="text-slate-400 text-xs mb-5">Your final sequence analysis telemetry report</p>
+
+            {/* Performance Stat Blocks */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="bg-slate-950/60 border border-white/5 p-3 rounded-xl">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Final Score</p>
+                <p className="text-xl font-black text-yellow-400 font-mono">{score}</p>
+              </div>
+              <div className="bg-slate-950/60 border border-white/5 p-3 rounded-xl">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Distance</p>
+                <p className="text-xl font-black text-cyan-400 font-mono">{distance}m</p>
+              </div>
+              <div className="bg-slate-950/60 border border-white/5 p-3 rounded-xl">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Coins Extracted</p>
+                <p className="text-xl font-black text-amber-500 font-mono">🪙 {coins}</p>
+              </div>
+            </div>
+
+            {/* Micro Leaderboard Comparison Insight */}
+            {highScores.length > 0 && (
+              <div className="bg-slate-950/40 rounded-xl p-3 border border-white/5 mb-5 text-left">
+                <p className="text-[10px] font-black text-purple-400 uppercase tracking-wide mb-1.5">🏆 Personal Records Standing</p>
+                <div className="space-y-1 font-mono text-xs text-slate-300">
+                  {highScores.map((hs, i) => (
+                    <div key={i} className={`flex justify-between items-center px-2 py-0.5 rounded ${score === hs ? "bg-purple-500/10 text-yellow-300 font-bold" : "opacity-75"}`}>
+                      <span>Rank #{i + 1}</span>
+                      <span>{hs} pts</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Interactive Functional CTA Actions */}
+            <div className="flex gap-3">
+              <button
+                onClick={handleRestartRun}
+                className="flex-1 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-black text-xs px-4 py-3 rounded-xl shadow-lg border border-cyan-400/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0"
+              >
+                🔄 LOOP NEXT RUN
+              </button>
+              <button
+                onClick={() => onGameOver(score, coins)}
+                className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-white/5 transition-colors"
+              >
+                Exit to Hub
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 📺 INTERACTIVE REWARDED VIDEO ADS INTERCEPTION OVERLAY */}
-      {gamePausedRef.current && !activeSkill && !showCards && !adOverlay && !hasUsedAdRevive && dailyAdsUsed < MAX_DAILY_ADS && (
+      {gamePausedRef.current && !activeSkill && !showCards && !adOverlay && !hasUsedAdRevive && dailyAdsUsed < MAX_DAILY_ADS && !isGameOverScreen && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-xs z-20 rounded-2xl">
           <div className="text-center p-6 max-w-sm bg-slate-900 border border-white/10 rounded-2xl shadow-2xl">
             <p className="text-white font-black text-xl mb-1 flex items-center justify-center gap-2">💥 CRASHED!</p>
@@ -689,8 +810,6 @@ export default function GameScreen({ playerColor, onGameOver }) {
           )}
         </div>
       )}
-
-      {showCards && <SkillCards visibleCards={randomCards} onSelectSkill={handleSelectSkill} />}
     </div>
   );
 }
