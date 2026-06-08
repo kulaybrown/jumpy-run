@@ -1,9 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
+import farCityImg from '../assets/far-bg.png';
+import midCityImg from '../assets/mid-bg.png';
+import nearCityImg from '../assets/near-bg.png';
 
-// CONFIGURATION: Adjust daily commercial constraints here
+// --- CONFIGURATION TUNING ---
 const MAX_DAILY_ADS = 3;
+const BACKGROUND_ZOOM = 1.5; // Increase this (e.g., 1.8, 2.0) to zoom in even closer!
 
 export default function GameScreen({ playerColor, onMainMenu }) {
   const canvasRef = useRef(null);
@@ -52,6 +56,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const ufosRef = useRef([]);
   const particlesRef = useRef([]); 
 
+  // --- PARALLAX BACKGROUND REFS ---
+  const bgLayersRef = useRef([]);
+  const bgLoadedRef = useRef(false);
+
   const canvasClickHandler = useRef(null);
 
   // --- INITIALIZATION AND DAILY CAP ROTATION ENGINE ---
@@ -71,6 +79,30 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     setDailyAdsUsed(historicalCount);
   }, []);
 
+  // --- PARALLAX BACKGROUND ASSET PRELOADER ---
+  useEffect(() => {
+    const far = new Image(); far.src = farCityImg;
+    const mid = new Image(); mid.src = midCityImg;
+    const near = new Image(); near.src = nearCityImg;
+
+    let loadedCount = 0;
+    const checkLoad = () => {
+      loadedCount++;
+      if (loadedCount === 3) {
+        bgLayersRef.current = [
+          { img: far, x: 0, speed: 0.2 },
+          { img: mid, x: 0, speed: 0.5 },
+          { img: near, x: 0, speed: 1.2 }
+        ];
+        bgLoadedRef.current = true;
+      }
+    };
+
+    far.onload = checkLoad;
+    mid.onload = checkLoad;
+    near.onload = checkLoad;
+  }, []);
+
   // --- AD COUNTDOWN TIMER TICK EFFECT ---
   useEffect(() => {
     let interval;
@@ -82,21 +114,18 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     return () => clearInterval(interval);
   }, [adOverlay, adCountdown]);
 
-  // --- CLEAN AD REWARD DELIVERY EFFECT (FIXED DOUBLE COUNTING) ---
+  // --- CLEAN AD REWARD DELIVERY EFFECT ---
   useEffect(() => {
     if (adOverlay === 'playing' && adCountdown === 0 && !adRewardGrantedRef.current) {
-      adRewardGrantedRef.current = true; // Block subsequent redundant updates immediately
+      adRewardGrantedRef.current = true; 
 
-      // 1. Core Persistence Synchronization
       const internalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10) + 1;
       localStorage.setItem('runner_daily_ads_count', internalCount.toString());
       
-      // 2. Component Layout & Counter State Refreshes
       setDailyAdsUsed(internalCount);
       setHasUsedAdRevive(true);
       setAdOverlay(null);
 
-      // 3. Clear Existing Obstacle Array Matrices & Allocate Temp Ghost Buffer
       obstaclesRef.current.length = 0;
       ufosRef.current.length = 0;
       activeSkillRef.current = 'invisible'; 
@@ -225,9 +254,8 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     gamePausedRef.current = false;
   };
 
-  // 📺 AD REWARD INITIALIZER
   const watchRewardedAd = () => {
-    adRewardGrantedRef.current = false; // Reset lock gate entry status
+    adRewardGrantedRef.current = false;
     setShowAdPrompt(false);
     setAdOverlay('loading');
 
@@ -270,8 +298,13 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    canvas.width = 800;
-    canvas.height = 400;
+    
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = 800 * dpr;
+    canvas.height = 400 * dpr;
+
+    ctx.scale(dpr, dpr);
+    ctx.imageSmoothingEnabled = true;
 
     let animationFrameId;
     let localScore = score; 
@@ -294,8 +327,8 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       color: playerColor 
     };
 
-    const groundY = canvas.height - 60;
-    const bgEffects = new BackgroundEffects(canvas.width, groundY);
+    const groundY = 400 - 60; 
+    const bgEffects = new BackgroundEffects(800, groundY);
     const obstacles = obstaclesRef.current;
     const coinsArray = coinsArrayRef.current;
     const ufos = ufosRef.current;
@@ -342,7 +375,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       if (gamePausedRef.current) return;
 
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, 800, 400);
       ctx.save();
 
       if (shakeIntensityRef.current > 0.1) {
@@ -359,12 +392,37 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       if (currentModifier === 'slow') ctx.fillStyle = '#1e293b'; 
       else if (currentModifier === 'gravity') ctx.fillStyle = '#2e1065'; 
       else ctx.fillStyle = bgEffects.getSkyColor(Math.floor(localDistance)); 
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillRect(0, 0, 800, 400);
 
       bgEffects.render(ctx, Math.floor(localDistance));
 
+      // --- ZOOMED & FLUSH PARALLAX LAYER RENDERING ---
+      if (bgLoadedRef.current) {
+        bgLayersRef.current.forEach(layer => {
+          layer.x -= layer.speed * gameSpeedMultiplier;
+          
+          // Apply custom global zoom scale factor
+          const imgHeight = groundY * BACKGROUND_ZOOM; 
+          const scale = imgHeight / layer.img.height;
+          const scaledWidth = layer.img.width * scale;
+
+          // Anchor the asset's bottom edge directly flush with the floor line
+          const yOffset = groundY - imgHeight;
+
+          if (layer.x <= -scaledWidth) {
+            layer.x += scaledWidth; 
+          }
+
+          if (scaledWidth > 0) {
+            ctx.drawImage(layer.img, layer.x, yOffset, scaledWidth, imgHeight);
+            ctx.drawImage(layer.img, layer.x + scaledWidth, yOffset, scaledWidth, imgHeight);
+          }
+        });
+      }
+
+      // Draw Ground (Drawn over the background overflow safely)
       ctx.fillStyle = '#10b981';
-      ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
+      ctx.fillRect(0, groundY, 800, 400 - groundY);
 
       if (currentModifier === 'shrink') {
         player.width = 20; player.height = 20;
@@ -432,7 +490,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       if (Math.floor(localDistance) >= nextUfoMilestone) {
         nextUfoMilestone += 800;
         ufos.push({
-          x: canvas.width + 40,
+          x: 800 + 40,
           y: 60 + Math.random() * 80,
           width: 50, height: 25, speed: 9, pulseAngle: 0
         });
@@ -505,7 +563,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
 
         obstacles.push({
-          x: canvas.width,
+          x: 800,
           y: currentModifier === 'gravity' ? (Math.random() > 0.5 ? groundY - obsHeight : 0) : groundY - obsHeight, 
           width: obsWidth, height: obsHeight, speed: obsBaseSpeed, color: obsColor
         });
@@ -516,7 +574,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           const dynamicNarrowGap = minGap + Math.random() * (maxGap - minGap);
           
           obstacles.push({
-            x: canvas.width + dynamicNarrowGap,
+            x: 800 + dynamicNarrowGap,
             y: currentModifier === 'gravity' ? (Math.random() > 0.5 ? groundY - obsHeight : 0) : groundY - obsHeight, 
             width: obsWidth, height: obsHeight, speed: obsBaseSpeed, color: obsColor
           });
@@ -563,7 +621,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       coinTimer++;
       if (coinTimer > (currentModifier === 'lucky' ? 25 : 80)) {
-        coinsArray.push({ x: canvas.width, y: groundY - 45 - Math.random() * 80, radius: 8, color: '#fbbf24' });
+        coinsArray.push({ x: 800, y: groundY - 45 - Math.random() * 80, radius: 8, color: '#fbbf24' });
         coinTimer = 0;
       }
 
@@ -770,53 +828,34 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       {showAdPrompt && !adOverlay && !hasUsedAdRevive && dailyAdsUsed < MAX_DAILY_ADS && !isGameOverScreen && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-xs z-50 p-4">
           <div className="text-center p-6 max-w-sm bg-slate-900 border border-white/10 rounded-2xl shadow-2xl">
-            <p className="text-white font-black text-xl mb-1 flex items-center justify-center gap-2">💥 CRASHED!</p>
-            <p className="text-slate-400 text-xs mb-3">You were doing great! Save your progress and keep this run alive.</p>
-            
-            <p className="text-[10px] text-purple-400 font-semibold mb-4 tracking-wide uppercase">
-              Daily Revives Remaining: {MAX_DAILY_ADS - dailyAdsUsed} / {MAX_DAILY_ADS}
-            </p>
-
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={watchRewardedAd}
-                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black text-xs py-3 rounded-xl transition-all transform hover:-translate-y-0.5 shadow-lg"
-              >
-                📺 WATCH COMMERCIAL TO REVIVE
+            <h3 className="text-lg font-bold text-white mb-2">Continue Run?</h3>
+            <p className="text-sm text-slate-400 mb-6">Watch a short ad to revive and keep your score.</p>
+            <div className="flex flex-col gap-3">
+              <button onClick={watchRewardedAd} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl transition-colors shadow-lg">
+                🎥 Watch Ad to Revive
               </button>
-              <button
-                onClick={handleSkipAdRevive}
-                className="text-slate-500 font-bold text-xs py-2 hover:text-slate-400 transition-colors"
-              >
-                No Thanks
+              <button onClick={handleSkipAdRevive} className="text-slate-500 hover:text-slate-300 text-xs font-semibold py-2">
+                Skip & End Run
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 📺 AD STREAM VIDEO OVERLAY */}
-      {adOverlay && (
+      {/* ⏳ FAKE AD PLAYING OVERLAY (SIMULATION) */}
+      {adOverlay === 'playing' && (
         <div className="absolute inset-0 bg-black z-[60] flex flex-col items-center justify-center p-4">
-          {adOverlay === 'loading' ? (
-            <div className="animate-pulse text-cyan-400 font-mono text-sm tracking-widest">
-              INITIALIZING SECURE AD STREAM...
-            </div>
-          ) : (
-            <div className="bg-slate-900 border border-white/10 p-8 sm:p-12 rounded-2xl text-center relative aspect-video max-w-lg w-full flex flex-col items-center justify-center shadow-2xl">
-              <div className="absolute top-4 right-4 bg-black/60 px-2 py-1 rounded border border-white/10 text-[10px] text-amber-400 font-mono tracking-wider">
-                REWARD IN: {adCountdown}s
-              </div>
-              <div className="text-5xl mb-4 animate-bounce">🎬</div>
-              <div className="text-sm font-black uppercase tracking-widest text-slate-200">
-                Sponsored Content
-              </div>
-              <p className="text-[11px] text-slate-500 mt-2">Do not close this overlay to claim your free revive</p>
-            </div>
-          )}
+          <div className="absolute top-4 right-4 bg-white/10 text-white text-xs px-3 py-1 rounded-full font-mono">
+            {adCountdown > 0 ? `Reward in ${adCountdown}s` : 'Reward Granted!'}
+          </div>
+          <div className="text-slate-500 text-sm mb-4 border border-slate-800 px-4 py-2 rounded-lg bg-slate-900">
+            [ Sponsor Advertisement Simulation ]
+          </div>
+          <div className="w-full max-w-xs h-48 bg-slate-800 animate-pulse rounded-xl flex items-center justify-center">
+            <span className="text-slate-600 font-bold tracking-widest uppercase">Video Ad</span>
+          </div>
         </div>
       )}
-
     </div>
   );
 }
