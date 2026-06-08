@@ -5,7 +5,7 @@ import { BackgroundEffects } from '../utils/BackgroundEffects';
 // CONFIGURATION: Adjust daily commercial constraints here
 const MAX_DAILY_ADS = 3;
 
-export default function GameScreen({ playerColor, onGameOver }) {
+export default function GameScreen({ playerColor, onMainMenu }) {
   const canvasRef = useRef(null);
   
   // Game Stats States
@@ -24,6 +24,7 @@ export default function GameScreen({ playerColor, onGameOver }) {
 
   // --- ECONOMIC, OVERLAY & JUICE FEATURES ---
   const [highScores, setHighScores] = useState([]);
+  const [showAdPrompt, setShowAdPrompt] = useState(false);
   const [adOverlay, setAdOverlay] = useState(null); // 'loading' | 'playing'
   const [adCountdown, setAdCountdown] = useState(5);
   const [hasUsedAdRevive, setHasUsedAdRevive] = useState(false);
@@ -32,6 +33,7 @@ export default function GameScreen({ playerColor, onGameOver }) {
   
   // Daily cap state tracking
   const [dailyAdsUsed, setDailyAdsUsed] = useState(0);
+  const adRewardGrantedRef = useRef(false); // Guard ref to guarantee single execution
 
   // Refs for loop management
   const gamePausedRef = useRef(false);
@@ -68,6 +70,45 @@ export default function GameScreen({ playerColor, onGameOver }) {
     }
     setDailyAdsUsed(historicalCount);
   }, []);
+
+  // --- AD COUNTDOWN TIMER TICK EFFECT ---
+  useEffect(() => {
+    let interval;
+    if (adOverlay === 'playing' && adCountdown > 0) {
+      interval = setInterval(() => {
+        setAdCountdown(prev => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [adOverlay, adCountdown]);
+
+  // --- CLEAN AD REWARD DELIVERY EFFECT (FIXED DOUBLE COUNTING) ---
+  useEffect(() => {
+    if (adOverlay === 'playing' && adCountdown === 0 && !adRewardGrantedRef.current) {
+      adRewardGrantedRef.current = true; // Block subsequent redundant updates immediately
+
+      // 1. Core Persistence Synchronization
+      const internalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10) + 1;
+      localStorage.setItem('runner_daily_ads_count', internalCount.toString());
+      
+      // 2. Component Layout & Counter State Refreshes
+      setDailyAdsUsed(internalCount);
+      setHasUsedAdRevive(true);
+      setAdOverlay(null);
+
+      // 3. Clear Existing Obstacle Array Matrices & Allocate Temp Ghost Buffer
+      obstaclesRef.current.length = 0;
+      ufosRef.current.length = 0;
+      activeSkillRef.current = 'invisible'; 
+      setActiveSkill('Ghost Walk 👻');
+      gamePausedRef.current = false;
+
+      setTimeout(() => {
+        activeSkillRef.current = null;
+        setActiveSkill(null);
+      }, 3000);
+    }
+  }, [adCountdown, adOverlay]);
 
   const saveHighScore = (finalScore) => {
     const currentScores = JSON.parse(localStorage.getItem('runner_high_scores')) || [];
@@ -184,52 +225,25 @@ export default function GameScreen({ playerColor, onGameOver }) {
     gamePausedRef.current = false;
   };
 
-  // 📺 AD REWARD DELIVERER
+  // 📺 AD REWARD INITIALIZER
   const watchRewardedAd = () => {
+    adRewardGrantedRef.current = false; // Reset lock gate entry status
+    setShowAdPrompt(false);
     setAdOverlay('loading');
 
     setTimeout(() => {
       setAdOverlay('playing');
       setAdCountdown(5);
-
-      const interval = setInterval(() => {
-        setAdCountdown(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setAdOverlay(null);
-            setHasUsedAdRevive(true);
-            
-            const internalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10) + 1;
-            localStorage.setItem('runner_daily_ads_count', internalCount.toString());
-            setDailyAdsUsed(internalCount);
-
-            obstaclesRef.current.length = 0;
-            ufosRef.current.length = 0;
-            activeSkillRef.current = 'invisible'; 
-            setActiveSkill('Ghost Walk 👻');
-            gamePausedRef.current = false;
-
-            setTimeout(() => {
-              activeSkillRef.current = null;
-              setActiveSkill(null);
-            }, 3000);
-
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
     }, 1000);
   };
 
   const handleSkipAdRevive = () => {
-    setAdOverlay(null);
+    setShowAdPrompt(false);
     saveHighScore(score);
     setIsGameOverScreen(true);
   };
 
   const handleRestartRun = () => {
-    // Completely purge active running metrics to initialize clean canvas context loop state
     obstaclesRef.current = [];
     coinsArrayRef.current = [];
     ufosRef.current = [];
@@ -247,11 +261,12 @@ export default function GameScreen({ playerColor, onGameOver }) {
     setActiveSkill(null);
     setHasUsedAdRevive(false);
     setIsGameOverScreen(false);
+    setShowAdPrompt(false);
     gamePausedRef.current = false;
   };
 
   useEffect(() => {
-    if (isGameOverScreen) return; // Halt loop tracking while displaying stats panel
+    if (isGameOverScreen) return; 
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -457,6 +472,7 @@ export default function GameScreen({ playerColor, onGameOver }) {
           const dailyAdsWatched = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10);
           if (!hasUsedAdRevive && dailyAdsWatched < MAX_DAILY_ADS) {
             gamePausedRef.current = true;
+            setShowAdPrompt(true);
           } else {
             isGameOver = true;
             saveHighScore(Math.floor(localScore));
@@ -534,6 +550,7 @@ export default function GameScreen({ playerColor, onGameOver }) {
           const dailyAdsWatched = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10);
           if (!hasUsedAdRevive && dailyAdsWatched < MAX_DAILY_ADS) {
             gamePausedRef.current = true;
+            setShowAdPrompt(true);
           } else {
             isGameOver = true;
             saveHighScore(Math.floor(localScore));
@@ -606,10 +623,10 @@ export default function GameScreen({ playerColor, onGameOver }) {
       cancelAnimationFrame(animationFrameId); 
       if (skillTimeoutIdRef.current) clearTimeout(skillTimeoutIdRef.current); 
     };
-  }, [onGameOver, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen]); 
+  }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen]); 
 
   return (
-    <div className="relative flex flex-col items-center select-none w-full max-w-3xl">
+    <div className="absolute inset-0 w-full h-full bg-slate-950 flex flex-col items-center justify-center select-none overflow-hidden">
       
       {/* Game HUD */}
       <div className="absolute top-4 left-4 right-4 flex justify-between items-center bg-slate-950/70 pointer-events-none px-4 py-2 rounded-xl backdrop-blur-xs border border-white/10 z-10 text-xs sm:text-sm font-bold tracking-wide">
@@ -631,10 +648,11 @@ export default function GameScreen({ playerColor, onGameOver }) {
         </div>
       </div>
 
+      {/* FLUID CANVAS ELEMENT */}
       <canvas
         ref={canvasRef}
         onClick={() => canvasClickHandler.current && canvasClickHandler.current()}
-        className="w-full aspect-[2/1] rounded-2xl shadow-2xl border border-slate-700 bg-slate-950 touch-none cursor-pointer"
+        className="w-full h-full object-contain bg-slate-950 touch-none cursor-pointer"
       />
 
       {/* 🏅 LEADERBOARD OVERLAY */}
@@ -654,7 +672,7 @@ export default function GameScreen({ playerColor, onGameOver }) {
 
       {/* 🎯 SKILL CARD CHOOSE MODAL OVERLAY */}
       {showCards && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 rounded-2xl p-4">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 p-4">
           <div className="text-center mb-4">
             <h3 className="text-xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 uppercase">
               🚀 Milestone Reached!
@@ -690,11 +708,10 @@ export default function GameScreen({ playerColor, onGameOver }) {
         </div>
       )}
 
-      {/* 💀 NEW IN-GAME GAME OVER METRICS SUMMARY PANEL OVERLAY */}
+      {/* 💀 IN-GAME GAME OVER METRICS SUMMARY PANEL OVERLAY */}
       {isGameOverScreen && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md z-40 rounded-2xl p-6">
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/90 backdrop-blur-md z-40 p-6">
           <div className="w-full max-w-md bg-slate-900/80 border border-white/10 rounded-2xl p-6 shadow-2xl text-center relative overflow-hidden animate-fade-in">
-            {/* Ambient accent banner flare */}
             <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-rose-500 via-red-500 to-orange-500 animate-pulse" />
             
             <h2 className="text-2xl font-black tracking-tighter text-rose-500 uppercase mb-1">
@@ -702,7 +719,6 @@ export default function GameScreen({ playerColor, onGameOver }) {
             </h2>
             <p className="text-slate-400 text-xs mb-5">Your final sequence analysis telemetry report</p>
 
-            {/* Performance Stat Blocks */}
             <div className="grid grid-cols-3 gap-3 mb-6">
               <div className="bg-slate-950/60 border border-white/5 p-3 rounded-xl">
                 <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Final Score</p>
@@ -718,7 +734,6 @@ export default function GameScreen({ playerColor, onGameOver }) {
               </div>
             </div>
 
-            {/* Micro Leaderboard Comparison Insight */}
             {highScores.length > 0 && (
               <div className="bg-slate-950/40 rounded-xl p-3 border border-white/5 mb-5 text-left">
                 <p className="text-[10px] font-black text-purple-400 uppercase tracking-wide mb-1.5">🏆 Personal Records Standing</p>
@@ -733,7 +748,6 @@ export default function GameScreen({ playerColor, onGameOver }) {
               </div>
             )}
 
-            {/* Interactive Functional CTA Actions */}
             <div className="flex gap-3">
               <button
                 onClick={handleRestartRun}
@@ -742,7 +756,7 @@ export default function GameScreen({ playerColor, onGameOver }) {
                 🔄 LOOP NEXT RUN
               </button>
               <button
-                onClick={() => onGameOver(score, coins)}
+                onClick={() => onMainMenu()}
                 className="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-white/5 transition-colors"
               >
                 Exit to Hub
@@ -753,8 +767,8 @@ export default function GameScreen({ playerColor, onGameOver }) {
       )}
 
       {/* 📺 INTERACTIVE REWARDED VIDEO ADS INTERCEPTION OVERLAY */}
-      {gamePausedRef.current && !activeSkill && !showCards && !adOverlay && !hasUsedAdRevive && dailyAdsUsed < MAX_DAILY_ADS && !isGameOverScreen && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-xs z-20 rounded-2xl">
+      {showAdPrompt && !adOverlay && !hasUsedAdRevive && dailyAdsUsed < MAX_DAILY_ADS && !isGameOverScreen && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-xs z-50 p-4">
           <div className="text-center p-6 max-w-sm bg-slate-900 border border-white/10 rounded-2xl shadow-2xl">
             <p className="text-white font-black text-xl mb-1 flex items-center justify-center gap-2">💥 CRASHED!</p>
             <p className="text-slate-400 text-xs mb-3">You were doing great! Save your progress and keep this run alive.</p>
@@ -762,54 +776,47 @@ export default function GameScreen({ playerColor, onGameOver }) {
             <p className="text-[10px] text-purple-400 font-semibold mb-4 tracking-wide uppercase">
               Daily Revives Remaining: {MAX_DAILY_ADS - dailyAdsUsed} / {MAX_DAILY_ADS}
             </p>
-            
+
             <div className="flex flex-col gap-2">
-              <button 
+              <button
                 onClick={watchRewardedAd}
-                className="w-full flex items-center justify-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-black text-xs px-4 py-3 rounded-xl shadow-lg border border-purple-400/30 transition-all transform active:scale-95 animate-pulse"
+                className="w-full bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-white font-black text-xs py-3 rounded-xl transition-all transform hover:-translate-y-0.5 shadow-lg"
               >
-                📺 WATCH AD TO REVIVE
+                📺 WATCH COMMERCIAL TO REVIVE
               </button>
-              <button 
+              <button
                 onClick={handleSkipAdRevive}
-                className="w-full text-slate-500 hover:text-slate-400 font-bold text-xs py-2 transition-colors"
+                className="text-slate-500 font-bold text-xs py-2 hover:text-slate-400 transition-colors"
               >
-                No thanks, end run
+                No Thanks
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* REWARDED AD SPONSORED EMULATOR SCREEN */}
+      {/* 📺 AD STREAM VIDEO OVERLAY */}
       {adOverlay && (
-        <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center rounded-2xl z-50 p-6 border border-slate-800">
+        <div className="absolute inset-0 bg-black z-[60] flex flex-col items-center justify-center p-4">
           {adOverlay === 'loading' ? (
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-              <p className="text-indigo-300 text-xs font-bold tracking-wide animate-pulse">BUFFERING SPONSORED CONTENT...</p>
+            <div className="animate-pulse text-cyan-400 font-mono text-sm tracking-widest">
+              INITIALIZING SECURE AD STREAM...
             </div>
           ) : (
-            <div className="w-full max-w-sm bg-slate-900 border border-white/10 rounded-2xl p-6 text-center shadow-2xl relative overflow-hidden">
-              <div className="absolute top-0 left-0 bg-indigo-600 text-white font-black text-[9px] px-2 py-0.5 rounded-br-md">SPONSORED VIDEO AD</div>
-              <p className="text-white text-base font-black tracking-wide mt-2">Unlock a Free Continuation Run?</p>
-              
-              <div className="my-6 flex items-center justify-center">
-                <div className="w-20 h-20 rounded-full bg-indigo-500/10 border-4 border-indigo-500 flex items-center justify-center text-3xl text-indigo-400 font-black font-mono animate-scale">
-                  {adCountdown}
-                </div>
+            <div className="bg-slate-900 border border-white/10 p-8 sm:p-12 rounded-2xl text-center relative aspect-video max-w-lg w-full flex flex-col items-center justify-center shadow-2xl">
+              <div className="absolute top-4 right-4 bg-black/60 px-2 py-1 rounded border border-white/10 text-[10px] text-amber-400 font-mono tracking-wider">
+                REWARD IN: {adCountdown}s
               </div>
-
-              <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div 
-                  className="bg-indigo-500 h-full transition-all duration-1000 ease-linear" 
-                  style={{ width: `${(adCountdown / 5) * 100}%` }}
-                ></div>
+              <div className="text-5xl mb-4 animate-bounce">🎬</div>
+              <div className="text-sm font-black uppercase tracking-widest text-slate-200">
+                Sponsored Content
               </div>
+              <p className="text-[11px] text-slate-500 mt-2">Do not close this overlay to claim your free revive</p>
             </div>
           )}
         </div>
       )}
+
     </div>
   );
 }

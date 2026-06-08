@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import MainMenu from './pages/MainMenu';
 import CharacterSelect from './pages/CharacterSelect';
 import GameScreen from './pages/GameScreen';
-import GameOverScreen from './pages/GameOverScreen';
 
 export default function App() {
   // Game States: 'MENU', 'CHAR_SELECT', 'PLAYING', 'GAME_OVER'
@@ -42,17 +41,9 @@ export default function App() {
       )}
       
       {gameState === 'PLAYING' && (
-        <GameScreen playerColor={selectedColor} onGameOver={triggerGameOver} />
+        <GameScreen playerColor={selectedColor} onMainMenu={() => setGameState('MENU')}  />
       )}
       
-      {gameState === 'GAME_OVER' && (
-        <GameOverScreen 
-          score={finalScore} 
-          coins={finalCoins} 
-          onRestart={goToCharacterSelect} 
-          onMainMenu={() => setGameState('MENU')} 
-        />
-      )}
     </div>
   );
 }
