@@ -9,30 +9,30 @@ const CHARACTERS = [
 
 export default function CharacterSelect({ onSelectCharacter, onBack }) {
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center text-center w-screen h-screen bg-slate-950 overflow-hidden select-none p-6 animate-fade-in">
+    <div className="fixed inset-0 flex flex-col items-center justify-center text-center w-screen h-screen bg-slate-950 overflow-hidden select-none p-4 animate-fade-in">
       
       {/* Decorative Full-Screen Purple & Pink Background Glows */}
       <div className="absolute top-1/4 right-1/4 translate-x-1/4 -translate-y-1/4 w-[500px] h-[500px] bg-purple-500/10 rounded-full blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 left-1/4 -translate-x-1/4 translate-y-1/4 w-[500px] h-[500px] bg-pink-500/10 rounded-full blur-[120px] pointer-events-none" />
 
       {/* Main Core UI Wrapper */}
-      <div className="flex flex-col items-center justify-between h-full max-h-[600px] w-full max-w-4xl z-10 py-4">
+      <div className="flex flex-col items-center justify-between h-full max-h-[600px] w-full max-w-4xl z-10">
         
         {/* Header Block */}
         <div className="space-y-1">
-          <h2 className="text-4xl sm:text-5xl font-black tracking-wider uppercase bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500 drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)]">
+          <h2 className="text-4xl font-black tracking-wider uppercase bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-500 drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)]">
             Select Your Runner
           </h2>
           <p className="text-slate-400 text-xs sm:text-sm font-medium">Choose a color identity profile to hit the track</p>
         </div>
 
         {/* Characters Grid Matrix (Adaptive: 2x2 on small profiles, 1x4 on standard setups) */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 w-full my-auto px-2 max-w-md lg:max-w-none">
+        <div className="grid grid-cols-4 gap-4">
           {CHARACTERS.map((char) => (
             <button
               key={char.id}
               onClick={() => onSelectCharacter(char.color)}
-              className="group relative flex flex-col items-center justify-center p-5 bg-slate-900/60 border border-slate-800 hover:border-purple-500/80 rounded-2xl transition-all duration-200 hover:-translate-y-1.5 cursor-pointer active:scale-95 shadow-xl hover:shadow-[0_0_25px_rgba(168,85,247,0.15)] overflow-hidden"
+              className="group relative flex flex-col items-center justify-center p-5 bg-slate-900/60 border border-slate-800 hover:border-purple-500/80 rounded-2xl transition-all duration-200 hover:-translate-y-1.5 cursor-pointer active:scale-95 shadow-xl hover:shadow-[0_0_25px_rgba(168,85,247,0.15)] w-[150px] overflow-hidden"
             >
               {/* Highlight backdrop accent block flare */}
               <div className="absolute inset-0 bg-gradient-to-b from-purple-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
