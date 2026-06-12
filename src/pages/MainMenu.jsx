@@ -1,4 +1,5 @@
 import React from 'react';
+import Button from '../components/Button';
 
 export default function MainMenu({ onStartGame }) {
   return (
@@ -85,15 +86,8 @@ export default function MainMenu({ onStartGame }) {
         </div>
 
         {/* 🕹️ START TO PLAY ACTION BUTTON */}
-        <div className="mb-4 transform transition-all active:scale-95">
-          <button
-            onClick={onStartGame}
-            className="relative px-12 py-4 bg-gradient-to-r from-orange-400 via-yellow-400 to-green-400 hover:from-orange-300 hover:to-green-300 text-white font-black text-2xl sm:text-4xl rounded-2xl border-4 border-white shadow-[0_8px_0px_#15803d,0_12px_15px_rgba(0,0,0,0.4)] active:shadow-[0_0px_0px_transparent] active:translate-y-[8px] transition-all cursor-pointer tracking-wide uppercase flex items-center gap-3 group"
-          >
-            <span>START TO PLAY</span>
-            <span className="text-xl sm:text-2xl group-hover:translate-x-1 transition-transform">▶</span>
-          </button>
-        </div>
+        <Button onClick={onStartGame} />
+
 
         {/* 🗺️ FOOTER CONTROLS HUD */}
         <div className="w-full max-w-xl bg-black/40 border border-white/10 rounded-xl py-2 px-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-white font-bold text-xs sm:text-sm shadow-inner backdrop-blur-xs">
