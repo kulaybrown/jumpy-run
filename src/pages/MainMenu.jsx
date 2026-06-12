@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function MainMenu({ onStartGame }) {
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-between w-screen h-screen bg-gradient-to-b from-[#4facfe] via-[#7ae0ff] via-[#b3f5ff] via-[#b4f6b2] to-[#44b051] overflow-hidden select-none font-sans p-4 border-[12px] border-amber-700 md:border-[16px] shadow-[inset_0_0_0_4px_#f59e0b]">
+    <div className="relative inset-0 flex flex-col items-center justify-between w-full max-w-[1400px] aspect-[2/1] bg-gradient-to-b from-[#4facfe] via-[#7ae0ff] via-[#b3f5ff] via-[#b4f6b2] to-[#44b051] overflow-hidden select-none font-sans p-4 border-[12px] border-amber-700 md:border-[16px] shadow-[inset_0_0_0_4px_#f59e0b]">
       
       {/* 🖼️ PIXEL ART FRAME CORNERS */}
       <div className="absolute top-0 left-0 w-4 h-4 bg-yellow-400 border-b-4 border-r-4 border-amber-900 z-50"></div>

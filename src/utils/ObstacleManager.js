@@ -1,64 +1,56 @@
-import small1 from '../assets/obstacle-small-1.png';
-import small2 from '../assets/obstacle-small-2.png';
-import med1 from '../assets/obstacle-medium-1.png';
-import med2 from '../assets/obstacle-medium-2.png';
-import med3 from '../assets/obstacle-medium-3.png';
-import med4 from '../assets/obstacle-medium-4.png';
-import med5 from '../assets/obstacle-medium-5.png';
-import med6 from '../assets/obstacle-medium-6.png';
-import tall1 from '../assets/obstacle-tall-1.png';
-import tall2 from '../assets/obstacle-tall-2.png';
+import obstacleWood from '../assets/obstacle-wood.png';
+import obstacleRock from '../assets/obstacle-rock.png';
+import obstacleSpikeyBall from '../assets/obstacle-spikeyball.png';
 
 export class ObstacleManager {
   constructor() {
-    this.sprites = {
-      small: [],
-      medium: [],
-      tall: []
+    this.images = {
+      wood: new Image(),
+      rock: new Image(),
+      spikeyball: new Image()
     };
+    
+    this.images.wood.src = obstacleWood;
+    this.images.rock.src = obstacleRock;
+    this.images.spikeyball.src = obstacleSpikeyBall;
+
     this.isLoaded = false;
   }
 
   /**
-   * Preloads all image streams completely into memory vectors before releasing game execution.
+   * Promisified preloader ensuring all imagery is safely cached 
+   * in memory before the main canvas execution loop spins up.
    */
   async initialize() {
-    const assetManifest = {
-      small: [small1, small2],
-      medium: [med1, med2, med3, med4, med5, med6],
-      tall: [tall1, tall2]
-    };
-
-    const loadPromises = [];
-
-    Object.keys(assetManifest).forEach(poolKey => {
-      assetManifest[poolKey].forEach(src => {
-        const img = new Image();
-        img.src = src;
-        const p = new Promise(resolve => {
-          img.onload = () => {
-            this.sprites[poolKey].push(img);
-            resolve();
-          };
-          img.onerror = () => {
-            console.error(`Critical layout pipeline error: Failure loading ${src}`);
-            resolve(); // Resolved defensively to prevent blocking game initialization on minor file errors
-          };
-        });
-        loadPromises.push(p);
-      });
+    const loadImg = (img) => new Promise((resolve) => {
+      if (img.complete) resolve();
+      else img.onload = () => resolve();
     });
 
-    await Promise.all(loadPromises);
+    await Promise.all([
+      loadImg(this.images.wood),
+      loadImg(this.images.rock),
+      loadImg(this.images.spikeyball)
+    ]);
+
     this.isLoaded = true;
+    return Promise.resolve();
   }
 
   /**
-   * Fetches a random preloaded HTMLImageElement out of a size-indexed pool context.
+   * Selects a random hazard variant based on game layout requirements.
    */
-  getRandomSprite(poolType) {
-    const targetedPool = this.sprites[poolType] || [];
-    if (targetedPool.length === 0) return null;
-    return targetedPool[Math.floor(Math.random() * targetedPool.length)];
+  getRandomType() {
+    const randSelector = Math.random();
+    if (randSelector < 0.35) return 'wood';
+    if (randSelector < 0.70) return 'rock';
+    return 'spikeyball';
+  }
+
+  /**
+   * Returns the preloaded HTMLImageElement reference for direct canvas mapping.
+   */
+  getImage(type) {
+    return this.images[type] || null;
   }
 }

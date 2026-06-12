@@ -28,7 +28,7 @@ export default function App() {
   };
 
   return (
-    <div className="w-full h-screen bg-slate-900 text-white flex items-center justify-center overflow-hidden font-sans select-none">
+    <div className="w-screen h-screen bg-slate-900 text-white flex items-center justify-center overflow-hidden font-sans select-none">
       {gameState === 'MENU' && (
         <MainMenu onStartGame={goToCharacterSelect} />
       )}

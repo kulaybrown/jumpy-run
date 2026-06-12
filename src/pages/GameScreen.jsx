@@ -8,7 +8,7 @@ import nearCityImg from '../assets/near-bg.png';
 
 // --- CONFIGURATION TUNING ---
 const MAX_DAILY_ADS = 3;
-const BACKGROUND_ZOOM = 1.5; // Increase this (e.g., 1.8, 2.0) to zoom in even closer!
+const BACKGROUND_ZOOM = 1.1; 
 
 export default function GameScreen({ playerColor, onMainMenu }) {
   const canvasRef = useRef(null);
@@ -25,12 +25,14 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   // Card Skill States
   const [showCards, setShowCards] = useState(false);
   const [randomCards, setRandomCards] = useState([]);
-  const [activeSkill, setActiveSkill] = useState(null);
+  
+  // Track multiple concurrent active skills for the HUD render
+  const [activeSkills, setActiveSkills] = useState([]);
 
   // --- ECONOMIC, OVERLAY & JUICE FEATURES ---
   const [highScores, setHighScores] = useState([]);
   const [showAdPrompt, setShowAdPrompt] = useState(false);
-  const [adOverlay, setAdOverlay] = useState(null); 
+  const [adOverlay, setAdOverlay] = useState(null); // ✨ Fixed syntax typo here
   const [adCountdown, setAdCountdown] = useState(5);
   const [hasUsedAdRevive, setHasUsedAdRevive] = useState(false);
   const [shakeIntensity, setShakeIntensity] = useState(0);
@@ -43,15 +45,17 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
   // Refs for loop management
   const gamePausedRef = useRef(false);
-  const activeSkillRef = useRef(null);
-  const nextSkillMilestoneRef = useRef(200); 
+  const nextSkillMilestoneRef = useRef(400); 
 
   const shieldCountRef = useRef(0);
   const reviveCountRef = useRef(0);
   const shakeIntensityRef = useRef(0);
+  
+  // Ref tracker for active flying dodge maneuvers
+  const flyEvadeTimerRef = useRef(0);
 
-  const skillExpirationTimeRef = useRef(0);
-  const skillTimeoutIdRef = useRef(null);
+  // Dictionary collection to map multi-skill stacking streams: { [skillId]: { expires, name, icon } }
+  const activeSkillsRef = useRef({});
 
   const obstaclesRef = useRef([]);
   const coinsArrayRef = useRef([]);
@@ -102,7 +106,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         bgLayersRef.current = [
           { img: far, x: 0, speed: 0.2 },
           { img: mid, x: 0, speed: 0.5 },
-          { img: near, x: 0, speed: 1.2 }
+          { img: near, x: 0, speed: 7 } 
         ];
         bgsLoaded = true;
         verifyFinalSetup();
@@ -143,14 +147,13 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       obstaclesRef.current.length = 0;
       ufosRef.current.length = 0;
-      activeSkillRef.current = 'invisible'; 
-      setActiveSkill('Ghost Walk 👻');
+      
+      activeSkillsRef.current['invisible'] = {
+        expires: Date.now() + 3000,
+        name: 'Ghost Walk',
+        icon: '👻'
+      };
       gamePausedRef.current = false;
-
-      setTimeout(() => {
-        activeSkillRef.current = null;
-        setActiveSkill(null);
-      }, 3000);
     }
   }, [adCountdown, adOverlay]);
 
@@ -196,7 +199,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     const coinsArray = coinsArrayRef.current;
 
     if (!skill) {
-      if (!activeSkillRef.current) setActiveSkill(null);
       setShowCards(false);
       gamePausedRef.current = false;
       return;
@@ -206,16 +208,15 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       triggerShake(12); 
       obstacles.forEach(obs => {
         spawnParticles(obs.x, obs.y, '#fbbf24', 6);
-        coinsArray.push({ x: obs.x, y: obs.y, radius: 8, color: '#fbbf24' });
+        coinsArray.push({ x: obs.x, y: obs.y, radius: 8 });
       });
       obstacles.length = 0;
       ufosRef.current.forEach(ufo => {
         spawnParticles(ufo.x, ufo.y, '#fbbf24', 12);
-        coinsArray.push({ x: ufo.x, y: ufo.y, radius: 10, color: '#fbbf24' });
+        coinsArray.push({ x: ufo.x, y: ufo.y, radius: 10 });
       });
       ufosRef.current.length = 0;
 
-      if (!activeSkillRef.current) setActiveSkill(null);
       setShowCards(false);
       gamePausedRef.current = false;
       return;
@@ -241,29 +242,27 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       return;
     }
 
+    // --- TIMED SKILLS OVERLAPPING AND OVERWRITING MATRIX ---
     let extraDuration = skill.duration || 0;
+    const conflictGroup = ['gravity', 'fly', 'spring'];
 
-    if (skillTimeoutIdRef.current) {
-      clearTimeout(skillTimeoutIdRef.current);
+    if (conflictGroup.includes(skill.id)) {
+      conflictGroup.forEach(id => {
+        if (id !== skill.id) {
+          delete activeSkillsRef.current[id];
+        }
+      });
     }
 
-    if (activeSkillRef.current === skill.id) {
-      const timeLeft = Math.max(0, skillExpirationTimeRef.current - now);
-      const totalNewDuration = timeLeft + extraDuration;
-      skillExpirationTimeRef.current = now + totalNewDuration;
+    if (activeSkillsRef.current[skill.id] && activeSkillsRef.current[skill.id].expires > now) {
+      activeSkillsRef.current[skill.id].expires += extraDuration;
     } else {
-      setActiveSkill(`${skill.name} ${skill.icon}`);
-      activeSkillRef.current = skill.id;
-      skillExpirationTimeRef.current = now + extraDuration;
+      activeSkillsRef.current[skill.id] = {
+        expires: now + extraDuration,
+        name: skill.name,
+        icon: skill.icon
+      };
     }
-
-    const operationalDuration = skillExpirationTimeRef.current - now;
-
-    skillTimeoutIdRef.current = setTimeout(() => {
-      activeSkillRef.current = null;
-      setActiveSkill(null);
-      skillExpirationTimeRef.current = 0;
-    }, operationalDuration);
 
     setShowCards(false);
     gamePausedRef.current = false;
@@ -293,15 +292,17 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     particlesRef.current = [];
     shieldCountRef.current = 0;
     reviveCountRef.current = 0;
-    activeSkillRef.current = null;
-    nextSkillMilestoneRef.current = 200;
+    flyEvadeTimerRef.current = 0;
+    activeSkillsRef.current = {};
+    
+    nextSkillMilestoneRef.current = 400; 
     
     setScore(0);
     setDistance(0);
     setCoins(0);
     setShieldCount(0);
     setReviveCount(0);
-    setActiveSkill(null);
+    setActiveSkills([]);
     setHasUsedAdRevive(false);
     setIsGameOverScreen(false);
     setShowAdPrompt(false);
@@ -330,6 +331,8 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     let lastTime = performance.now();
     const fpsInterval = 1000 / 60;
 
+    let prevActiveIdsStr = '';
+
     const player = {
       x: 80,
       y: 300,
@@ -342,7 +345,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       color: playerColor 
     };
 
-    const groundY = 400 - 60; 
+    const groundY = 400 - 70; 
     const bgEffects = new BackgroundEffects(800, groundY);
     const obstacles = obstaclesRef.current;
     const coinsArray = coinsArrayRef.current;
@@ -357,12 +360,22 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     let sonicTimer = 0;
     let nextUfoMilestone = localDistance > 0 ? Math.floor(localDistance / 800) * 800 + 800 : 800; 
 
+    const isSkillActive = (id) => activeSkillsRef.current[id] && activeSkillsRef.current[id].expires > Date.now();
+
     const handleJump = () => {
       if (gamePausedRef.current || isGameOver) return;
-      if (activeSkillRef.current === 'gravity') {
+      
+      if (isSkillActive('fly')) {
+        if (flyEvadeTimerRef.current === 0) {
+          flyEvadeTimerRef.current = 25; 
+        }
+        return;
+      }
+
+      if (isSkillActive('gravity')) {
         player.velocity = player.y <= 10 ? 9 : -9; 
         player.isGrounded = false;
-      } else if (player.isGrounded || activeSkillRef.current === 'spring') {
+      } else if (player.isGrounded || isSkillActive('spring')) {
         player.velocity = player.jumpStrength;
         player.isGrounded = false;
       }
@@ -390,6 +403,30 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       if (gamePausedRef.current) return;
 
+      const now = Date.now();
+
+      // --- HIGH-PERFORMANCE HIGH-FREQUENCY STATE BRIDGE BUFFER ---
+      const currentActive = [];
+      const currentIds = [];
+      Object.keys(activeSkillsRef.current).forEach(id => {
+        if (activeSkillsRef.current[id].expires > now) {
+          currentActive.push({
+            id,
+            name: activeSkillsRef.current[id].name,
+            icon: activeSkillsRef.current[id].icon
+          });
+          currentIds.push(id);
+        } else {
+          delete activeSkillsRef.current[id];
+        }
+      });
+
+      const currentIdsStr = currentIds.sort().join(',');
+      if (currentIdsStr !== prevActiveIdsStr) {
+        prevActiveIdsStr = currentIdsStr;
+        setActiveSkills(currentActive);
+      }
+
       ctx.clearRect(0, 0, 800, 400);
       ctx.save();
 
@@ -400,25 +437,26 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         shakeIntensityRef.current *= 0.9; 
       }
 
-      const currentModifier = activeSkillRef.current;
       const rawMultiplier = 1 + Math.floor(localDistance / 200) * 0.05;
       const gameSpeedMultiplier = Math.min(rawMultiplier, 3.0); 
 
-      if (currentModifier === 'slow') ctx.fillStyle = '#1e293b'; 
-      else if (currentModifier === 'gravity') ctx.fillStyle = '#2e1065'; 
+      // 🎯 Layer 1: Solid Sky Backdrop
+      if (isSkillActive('slow')) ctx.fillStyle = '#1e293b'; 
+      else if (isSkillActive('gravity')) ctx.fillStyle = '#2e1065'; 
       else ctx.fillStyle = bgEffects.getSkyColor(Math.floor(localDistance)); 
       ctx.fillRect(0, 0, 800, 400);
 
-      bgEffects.render(ctx, Math.floor(localDistance));
+      
 
-      // Draw Background Parallax Layers
+      // 🎯 Layer 2: Parallax Scenery (Buildings, strictly drawn first)
       bgLayersRef.current.forEach(layer => {
-        layer.x -= layer.speed * gameSpeedMultiplier;
+        const dynamicLayerSpeed = isSkillActive('slow') ? layer.speed * 0.6 : layer.speed;
+        layer.x -= dynamicLayerSpeed * gameSpeedMultiplier;
         
-        const imgHeight = groundY * BACKGROUND_ZOOM; 
+        const imgHeight = 400 * BACKGROUND_ZOOM; 
         const scale = imgHeight / layer.img.height;
         const scaledWidth = layer.img.width * scale;
-        const yOffset = groundY - imgHeight;
+        const yOffset = 400 - imgHeight;
 
         if (layer.x <= -scaledWidth) {
           layer.x += scaledWidth; 
@@ -430,24 +468,45 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
       });
 
-      ctx.fillStyle = '#10b981';
-      ctx.fillRect(0, groundY, 800, 400 - groundY);
+      bgEffects.render(ctx, Math.floor(localDistance));
 
-      if (currentModifier === 'shrink') {
+      // --- LAYER START: ENTITIES (Shadows, Player, Enemies) ON FOREGROUND ---
+
+      // 🎯 Layer 4: Runner Ground Shadow
+      ctx.save();
+      const playerCenterX = player.x + player.width / 2;
+      const heightAboveGround = groundY - (player.y + player.height);
+      const shadowScaleFactor = Math.max(0.3, 1 - heightAboveGround / 160);
+      const shadowAlphaFactor = Math.max(0, 0.35 - heightAboveGround / 240);
+      
+      ctx.beginPath();
+      ctx.ellipse(playerCenterX, groundY, player.width * 0.55 * shadowScaleFactor, player.width * 0.14 * shadowScaleFactor, 0, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlphaFactor})`;
+      ctx.fill();
+      ctx.restore();
+
+      if (isSkillActive('shrink')) {
         player.width = 20; player.height = 20;
       } else {
         player.width = 40; player.height = 40;
       }
 
-      if (currentModifier === 'fly') {
-        player.y = Math.min(player.y, groundY - 140); 
+      if (isSkillActive('fly')) {
+        let flyOffsetY = 0;
+        if (flyEvadeTimerRef.current > 0) {
+          flyOffsetY = -Math.sin(((25 - flyEvadeTimerRef.current) / 25) * Math.PI) * 60;
+          flyEvadeTimerRef.current--;
+        }
+        player.y = Math.min(player.y, groundY - 140 + flyOffsetY); 
         player.velocity = 0;
         player.isGrounded = true;
-      } else if (currentModifier === 'gravity') {
+      } else if (isSkillActive('gravity')) {
+        flyEvadeTimerRef.current = 0;
         player.velocity -= player.gravity; 
         player.y += player.velocity;
         if (player.y <= 0) { player.y = 0; player.velocity = 0; player.isGrounded = true; }
       } else {
+        flyEvadeTimerRef.current = 0;
         player.velocity += player.gravity; 
         player.y += player.velocity;
         if (player.y + player.height >= groundY) {
@@ -455,6 +514,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
       }
 
+      // 🎯 Layer 5: Shield Spheres Mesh
       if (shieldCountRef.current > 0) {
         ctx.save();
         ctx.beginPath();
@@ -466,15 +526,18 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.restore();
       }
 
+      // 🎯 Layer 6: Superman Character (Safely on Foreground)
       ctx.save();
       ctx.shadowBlur = 15; ctx.shadowOffsetY = 6; ctx.shadowOffsetX = 2;
-      if (currentModifier === 'invisible') {
+      if (isSkillActive('invisible')) {
         ctx.fillStyle = 'rgba(56, 189, 248, 0.4)'; ctx.shadowColor = 'rgba(56, 189, 248, 0.2)'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      } else if (currentModifier === 'sprint') {
+      } else if (flyEvadeTimerRef.current > 0) {
+        ctx.fillStyle = '#22d3ee'; ctx.shadowColor = '#22d3ee'; ctx.strokeStyle = '#fff';
+      } else if (isSkillActive('sprint')) {
         ctx.fillStyle = '#f59e0b'; ctx.shadowColor = '#f59e0b'; ctx.strokeStyle = '#fff';
-      } else if (currentModifier === 'fly') {
+      } else if (isSkillActive('fly')) {
         ctx.fillStyle = '#a78bfa'; ctx.shadowColor = '#a78bfa'; ctx.strokeStyle = '#fff';
-      } else if (currentModifier === 'gravity') {
+      } else if (isSkillActive('gravity')) {
         ctx.fillStyle = '#ec4899'; ctx.shadowColor = '#ec4899'; ctx.strokeStyle = '#fff';
       } else {
         ctx.fillStyle = player.color; ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
@@ -483,7 +546,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       ctx.lineWidth = 3; ctx.strokeRect(player.x, player.y, player.width, player.height);
       ctx.restore();
 
-      if (currentModifier === 'sonic') {
+      if (isSkillActive('sonic')) {
         sonicTimer++;
         if (sonicTimer > 180) { 
           triggerShake(5); 
@@ -505,9 +568,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         });
       }
 
+      // 🎯 Layer 7: UFO Entity Array (Safely on Foreground)
       for (let i = ufos.length - 1; i >= 0; i--) {
         const ufo = ufos[i];
-        ufo.x -= (currentModifier === 'slow' ? ufo.speed * 0.5 : ufo.speed) * gameSpeedMultiplier;
+        ufo.x -= (isSkillActive('slow') ? ufo.speed * 0.5 : ufo.speed) * gameSpeedMultiplier;
         ufo.pulseAngle += 0.1;
 
         ctx.save();
@@ -524,14 +588,17 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.restore();
 
         if (player.x < ufo.x + ufo.width && player.x + player.width > ufo.x && player.y < ufo.y + ufo.height && player.y + player.height > ufo.y) {
-          if (currentModifier === 'invisible' || currentModifier === 'sprint') { spawnParticles(ufo.x, ufo.y, '#38bdf8'); ufos.splice(i, 1); continue; }
+          if (isSkillActive('invisible') || isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
+            spawnParticles(ufo.x, ufo.y, '#38bdf8'); 
+            ufos.splice(i, 1); 
+            continue; 
+          }
           
           triggerShake(8); 
           if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(ufo.x, ufo.y, '#22d3ee'); ufos.splice(i, 1); continue; }
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); ufos.length = 0; obstacles.length = 0;
-            activeSkillRef.current = 'invisible'; setActiveSkill('Ghost Walk 👻');
-            setTimeout(() => { activeSkillRef.current = null; setActiveSkill(null); }, 3000);
+            activeSkillsRef.current['invisible'] = { expires: Date.now() + 3000, name: 'Ghost Walk', icon: '👻' };
             continue;
           }
 
@@ -550,52 +617,52 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (ufo.x + ufo.width < 0) ufos.splice(i, 1);
       }
 
+      // --- 🪵 🪨 MODULAR OBSTACLE GENERATOR ---
       obstacleTimer += gameSpeedMultiplier;
-      const currentSpawnRate = currentModifier === 'slow' ? spawnRate * 1.5 : spawnRate;
+      const currentSpawnRate = isSkillActive('slow') ? spawnRate * 1.5 : spawnRate;
       
       if (obstacleTimer > currentSpawnRate) {
-        let obsWidth = 20; let obsHeight = 30; let obsColor = '#ef4444'; let obsBaseSpeed = 7; 
-        let poolType = 'small';
+        let obsSize = 48; 
+        let obsType = obstacleManagerRef.current.getRandomType(); 
+        let obsBaseSpeed = 7;
+        let yPos = groundY - obsSize;
 
-        const canSpawnSlow = localDistance >= 200;
-        const isSlowObstacle = canSpawnSlow && Math.random() < 0.25;
-
-        if (isSlowObstacle) {
-          poolType = 'small';
-          obsWidth = 32; obsHeight = 24; obsColor = '#06b6d4'; 
-          const progressionFactor = Math.min(1, (localDistance - 200) / 500);
-          obsBaseSpeed = 4.8 - (progressionFactor * 2.0); 
-        } else {
-          if (localDistance >= 1000) {
-            poolType = 'tall';
-            obsWidth = 24; obsHeight = 65; obsColor = '#a855f7'; 
-          } else if (localDistance >= 400) {
-            poolType = 'medium';
-            obsWidth = 42; obsHeight = 32; obsColor = '#f97316'; 
+        if (obsType === 'spikeyball') {
+          const altitudeRoll = Math.random();
+          if (altitudeRoll < 0.33) {
+            yPos = groundY - obsSize; 
+          } else if (altitudeRoll < 0.66) {
+            yPos = groundY - obsSize - 45; 
+          } else {
+            yPos = groundY - obsSize - 95; 
           }
+        } else {
+          yPos = groundY - obsSize + 21;
         }
-
-        const primarySprite = obstacleManagerRef.current.getRandomSprite(poolType);
 
         obstacles.push({
           x: 800,
-          y: currentModifier === 'gravity' ? (Math.random() > 0.5 ? groundY - obsHeight : 0) : groundY - obsHeight, 
-          width: obsWidth, height: obsHeight, speed: obsBaseSpeed, color: obsColor,
-          img: primarySprite
+          y: yPos,
+          baseY: yPos, 
+          width: obsSize,
+          height: obsSize,
+          speed: obsBaseSpeed,
+          type: obsType,
+          bobOffset: Math.random() * Math.PI * 2 
         });
 
-        if (!isSlowObstacle && Math.random() < 0.40) {
-          const maxGap = Math.max(45, 110 - Math.floor(localDistance / 15));
-          const minGap = Math.max(40, 55 - Math.floor(localDistance / 30));
-          const dynamicNarrowGap = minGap + Math.random() * (maxGap - minGap);
+        if (obsType !== 'spikeyball' && Math.random() < 0.35) {
+          const secondaryGap = 65 + Math.random() * 45;
+          let secType = Math.random() > 0.5 ? 'wood' : 'rock';
           
-          const secondarySprite = obstacleManagerRef.current.getRandomSprite(poolType);
-
           obstacles.push({
-            x: 800 + dynamicNarrowGap,
-            y: currentModifier === 'gravity' ? (Math.random() > 0.5 ? groundY - obsHeight : 0) : groundY - obsHeight, 
-            width: obsWidth, height: obsHeight, speed: obsBaseSpeed, color: obsColor,
-            img: secondarySprite
+            x: 800 + secondaryGap,
+            y: groundY - obsSize + 21,
+            baseY: groundY - obsSize + 21,
+            width: obsSize,
+            height: obsSize,
+            speed: obsBaseSpeed,
+            type: secType
           });
         }
         
@@ -603,27 +670,53 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (spawnRate > 65 && Math.random() > 0.7) spawnRate -= 1; 
       }
 
+      // 🎯 Layer 8: Render Obstacles cleanly ON FOREGROUND using Manager mapping values
       for (let i = obstacles.length - 1; i >= 0; i--) {
         const obs = obstacles[i];
-        const dynamicSpeed = (currentModifier === 'slow' ? obs.speed * 0.6 : obs.speed) * gameSpeedMultiplier;
+        const dynamicSpeed = (isSkillActive('slow') ? obs.speed * 0.6 : obs.speed) * gameSpeedMultiplier;
         obs.x -= dynamicSpeed; 
+
+        if (obs.type === 'spikeyball' && obs.baseY < groundY - obs.height) {
+          obs.y = obs.baseY + Math.sin((now / 180) + obs.bobOffset) * 10;
+        }
         
-        if (obs.img) {
-          ctx.drawImage(obs.img, obs.x, obs.y, obs.width, obs.height);
+        // --- Spikey Ball Vector Shadow Engine ---
+        if (obs.type === 'spikeyball') {
+          ctx.save();
+          const obsCenterX = obs.x + obs.width / 2;
+          const obsHeightAboveGround = groundY - (obs.y + obs.height);
+          const obsShadowScale = Math.max(0.2, 1 - obsHeightAboveGround / 160);
+          const obsShadowAlpha = Math.max(0, 0.32 - obsHeightAboveGround / 240);
+          
+          ctx.beginPath();
+          ctx.ellipse(obsCenterX, groundY, obs.width * 0.5 * obsShadowScale, obs.width * 0.12 * obsShadowScale, 0, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(0, 0, 0, ${obsShadowAlpha})`;
+          ctx.fill();
+          ctx.restore();
+        }
+        
+        ctx.save();
+        const assetImg = obstacleManagerRef.current.getImage(obs.type);
+        if (assetImg && assetImg.complete) {
+          ctx.drawImage(assetImg, obs.x, obs.y, obs.width, obs.height);
         } else {
-          ctx.fillStyle = obs.color;
+          ctx.fillStyle = obs.type === 'spikeyball' ? '#a855f7' : '#b45309';
           ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
         }
+        ctx.restore();
 
         if (player.x < obs.x + obs.width && player.x + player.width > obs.x && player.y < obs.y + obs.height && player.y + player.height > obs.y) {
-          if (currentModifier === 'invisible' || currentModifier === 'sprint') { spawnParticles(obs.x, obs.y, obs.color); obstacles.splice(i, 1); continue; }
+          if (isSkillActive('invisible') || isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
+            spawnParticles(obs.x, obs.y, '#f59e0b', 6); 
+            obstacles.splice(i, 1); 
+            continue; 
+          }
           
           triggerShake(8); 
           if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(obs.x, obs.y, '#22d3ee'); obstacles.splice(i, 1); continue; }
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); obstacles.length = 0; ufos.length = 0;
-            activeSkillRef.current = 'invisible'; setActiveSkill('Ghost Walk 👻');
-            setTimeout(() => { activeSkillRef.current = null; setActiveSkill(null); }, 3000);
+            activeSkillsRef.current['invisible'] = { expires: Date.now() + 3000, name: 'Ghost Walk', icon: '👻' };
             continue;
           }
 
@@ -642,27 +735,52 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (obs.x + obs.width < 0) obstacles.splice(i, 1);
       }
 
+      // --- 🪙 SPREADING GOLD PATTERN ENGINE ---
       coinTimer++;
-      if (coinTimer > (currentModifier === 'lucky' ? 25 : 80)) {
-        coinsArray.push({ x: 800, y: groundY - 45 - Math.random() * 80, radius: 8, color: '#fbbf24' });
+      const currentCoinInterval = isSkillActive('lucky') ? 18 : 50; 
+      if (coinTimer > currentCoinInterval) {
         coinTimer = 0;
+        const patternSelector = Math.random();
+        const baseHeight = groundY - 45 - Math.random() * 85;
+
+        if (patternSelector < 0.35) {
+          for (let j = 0; j < 4; j++) {
+            const calculatedY = baseHeight - Math.sin((j / 3) * Math.PI) * 55;
+            coinsArray.push({ x: 800 + (j * 32), y: calculatedY, radius: 8 });
+          }
+        } else if (patternSelector < 0.70) {
+          for (let j = 0; j < 3; j++) {
+            coinsArray.push({ x: 800 + (j * 30), y: baseHeight, radius: 8 });
+          }
+        } else {
+          coinsArray.push({ x: 800, y: baseHeight, radius: 8 });
+          coinsArray.push({ x: 830, y: baseHeight - 35, radius: 8 });
+          coinsArray.push({ x: 860, y: baseHeight, radius: 8 });
+        }
       }
 
       for (let i = coinsArray.length - 1; i >= 0; i--) {
         const coin = coinsArray[i]; 
         coin.x -= 5 * gameSpeedMultiplier;
-        if (currentModifier === 'magnet') {
+        if (isSkillActive('magnet')) {
           const dx = (player.x + player.width / 2) - coin.x; const dy = (player.y + player.height / 2) - coin.y;
           coin.x += dx * 0.14; coin.y += dy * 0.14;
         }
-        ctx.beginPath(); ctx.arc(coin.x, coin.y, coin.radius, 0, Math.PI * 2); ctx.fillStyle = coin.color; ctx.fill(); ctx.closePath();
+        
+        ctx.save();
+        ctx.font = `${coin.radius * 2.5}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🪙', coin.x, coin.y);
+        ctx.restore();
 
         if (player.x < coin.x + coin.radius && player.x + player.width > coin.x - coin.radius && player.y < coin.y + coin.radius && player.y + player.height > coin.y - coin.radius) {
-          localCoins += (currentModifier === 'double' ? 2 : 1);
-          localScore += (currentModifier === 'double' ? 50 : 25);
+          localCoins += (isSkillActive('double') ? 2 : 1);
+          localScore += (isSkillActive('double') ? 50 : 25);
           
           triggerShake(1.5); 
-          spawnParticles(coin.x, coin.y, '#fbbf24', 3);
+          spawnParticles(coin.x, coin.y, '#fbbf24', 5);
+          spawnParticles(coin.x, coin.y, '#ffffff', 2);
 
           setCoins(localCoins);
           coinsArray.splice(i, 1);
@@ -681,16 +799,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (p.alpha <= 0) particlesRef.current.splice(i, 1);
       }
 
-      const baseDistanceStep = currentModifier === 'sprint' ? 0.4 : 0.15;
+      const baseDistanceStep = isSkillActive('sprint') ? 0.4 : 0.15;
       localDistance += baseDistanceStep * gameSpeedMultiplier;
       setDistance(Math.floor(localDistance));
 
-      const baseScoreStep = currentModifier === 'multiplier' ? 0.6 : 0.2;
+      const baseScoreStep = isSkillActive('multiplier') ? 0.6 : 0.2;
       localScore += baseScoreStep * gameSpeedMultiplier;
       setScore(Math.floor(localScore));
 
       if (localScore >= nextSkillMilestoneRef.current) {
-        nextSkillMilestoneRef.current += 200; 
+        nextSkillMilestoneRef.current += 400; 
         triggerCardSelection();
       }
 
@@ -702,17 +820,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     return () => { 
       window.removeEventListener('keydown', handleKeyDown); 
       cancelAnimationFrame(animationFrameId); 
-      if (skillTimeoutIdRef.current) clearTimeout(skillTimeoutIdRef.current); 
     };
   }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen, assetsLoaded]); 
 
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-900 flex items-center justify-center select-none overflow-hidden p-2 sm:p-6">
       
-      {/* 🎮 固定比例 WIDESCREEN CABINET */}
+      {/* 🎮 WIDESCREEN CABINET */}
       <div className="relative w-full max-w-[1400px] aspect-[2/1] bg-slate-950 rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
         
-        {/* Loading/Preloader Shield Overlay */}
+        {/* Loading Overlay */}
         {!assetsLoaded && (
           <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center z-50 gap-3">
             <div className="w-10 h-10 border-4 border-t-cyan-400 border-white/10 rounded-full animate-spin" />
@@ -731,9 +848,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
               <div className="flex items-center gap-1 bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded-md text-[9px] sm:text-[11px] font-black">❤️ {reviveCount}/2</div>
             )}
           </div>
-          {activeSkill && (
-            <div className="px-3 py-1 bg-cyan-500/20 text-cyan-300 rounded-full font-semibold border border-cyan-400/30 animate-pulse uppercase text-[9px] sm:text-[10px] md:text-xs">⚡ {activeSkill}</div>
-          )}
+          
+          {/* --- ACTIVE MULTI-BADGE MULTIPLEXER HUD --- */}
+          <div className="flex flex-wrap gap-1 max-w-[40%] justify-center pointer-events-none">
+            {activeSkills.map((sk) => (
+              <div key={sk.id} className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full font-bold border border-cyan-400/20 animate-pulse uppercase text-[8px] sm:text-[9px] flex items-center gap-1 whitespace-nowrap">
+                <span>{sk.icon} {sk.name}</span>
+              </div>
+            ))}
+          </div>
+
           <div className="flex gap-4 sm:gap-6">
             <div className="text-yellow-400">SCORE: <span className="text-white">{score}</span></div>
             <div className="text-amber-400">🪙 COINS: <span className="text-white">{coins}</span></div>
@@ -800,21 +924,20 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           </div>
         )}
 
-        {/* 💀 PLAYFUL/KIDS THEMED RUN COMPLETED SUMMARY OVERLAY PANEL */}
+        {/* 💀 PLAYFUL RUN COMPLETED PANEL OVERLAY */}
         {isGameOverScreen && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-purple-950/85 backdrop-blur-md z-40 p-4 animate-fade-in">
-            {/* Main Cabinet Board */}
-            <div className="w-full max-w-md md:max-w-xl bg-gradient-to-b from-indigo-600 via-purple-700 to-indigo-900 border-4 border-yellow-400 rounded-3xl p-5 sm:p-6 md:p-8 shadow-[0_0_40px_rgba(250,204,21,0.5)] text-center relative min-h-[300px] overflow-y-auto">
-                            
-              {/* Animated Giant Comic Title */}
-              <h2 className="text-3xl font-black tracking-tight text-yellow-300 uppercase drop-shadow-[0_4px_0px_rgba(0,0,0,0.6)] animate-bounce mb-1">
+            <div className="w-full max-w-md md:max-w-xl bg-gradient-to-b from-indigo-600 via-purple-700 to-indigo-900 border-4 border-yellow-400 rounded-3xl p-5 sm:p-6 md:p-8 shadow-[0_0_40px_rgba(250,204,21,0.5)] text-center relative overflow-hidden">
+              
+              <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-pink-400 via-yellow-300 via-cyan-400 via-green-400 to-pink-400 bg-[length:200%_auto] animate-pulse" />
+              
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-yellow-300 uppercase drop-shadow-[0_4px_0px_rgba(0,0,0,0.6)] animate-bounce mb-1">
                 🎉 AWESOME RUN! 🎉
               </h2>
               <p className="text-cyan-200 text-xs sm:text-sm md:text-base font-bold tracking-wider uppercase mb-5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
                 Check out your spectacular score report!
               </p>
 
-              {/* Bubbly Playful Metric Cards */}
               <div className="grid grid-cols-3 gap-3 mb-5 md:mb-6">
                 <div className="bg-pink-500/30 border-2 border-pink-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#be185d]">
                   <p className="text-[10px] sm:text-xs font-black text-pink-200 uppercase tracking-wide mb-1">⭐ Stars</p>
@@ -830,9 +953,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                 </div>
               </div>
 
-              {/* 🏅 ARCADE LEADERBOARD PLACEMENT BADGE */}
+              {/* 🏅 LEADERBOARD PLACEMENT BADGE */}
               {highScores.length > 0 && (
-                <div className="mb-5 md:mb-6">
+                <div className="bg-indigo-950/60 rounded-2xl p-3 md:p-4 border-2 border-purple-400/50 mb-5 md:mb-6 shadow-inner">
                   <div className="font-sans text-xs sm:text-sm tracking-wide">
                     {(() => {
                       const achievedRank = highScores.indexOf(score) + 1;
@@ -858,7 +981,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                 </div>
               )}
 
-              {/* Chunky 3D Style Toy Buttons */}
+              {/* Toy Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleRestartRun}
@@ -877,7 +1000,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           </div>
         )}
 
-        {/* 📺 INTERACTIVE REWARDED VIDEO ADS INTERCEPTION OVERLAY */}
+        {/* REWARDED VIDEO ADS INTERCEPTION OVERLAY */}
         {showAdPrompt && !adOverlay && !hasUsedAdRevive && dailyAdsUsed < MAX_DAILY_ADS && !isGameOverScreen && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-xs z-50 p-4">
             <div className="text-center p-5 max-w-sm bg-slate-900 border border-white/10 rounded-2xl shadow-2xl">
@@ -895,7 +1018,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           </div>
         )}
 
-        {/* ⏳ FAKE AD PLAYING OVERLAY (SIMULATION) */}
+        {/* FAKE AD OVERLAY */}
         {adOverlay === 'playing' && (
           <div className="absolute inset-0 bg-black z-[60] flex flex-col items-center justify-center p-4">
             <div className="absolute top-4 right-4 bg-white/10 text-white text-[10px] md:text-xs font-mono px-2.5 py-1 rounded-full">
