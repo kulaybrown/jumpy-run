@@ -1,56 +1,66 @@
-import obstacleWood from '../assets/obstacle-wood.png';
-import obstacleRock from '../assets/obstacle-rock.png';
-import obstacleSpikeyBall from '../assets/obstacle-spikeyball.png';
+// src/utils/ObstacleManager.js
 
 export class ObstacleManager {
   constructor() {
-    this.images = {
-      wood: new Image(),
-      rock: new Image(),
-      spikeyball: new Image()
-    };
-    
-    this.images.wood.src = obstacleWood;
-    this.images.rock.src = obstacleRock;
-    this.images.spikeyball.src = obstacleSpikeyBall;
-
     this.isLoaded = false;
+    this.images = {};
+    this.types = ['wood', 'rock', 'spikeyball'];
   }
 
-  /**
-   * Promisified preloader ensuring all imagery is safely cached 
-   * in memory before the main canvas execution loop spins up.
-   */
-  async initialize() {
-    const loadImg = (img) => new Promise((resolve) => {
-      if (img.complete) resolve();
-      else img.onload = () => resolve();
+  initialize() {
+    return new Promise((resolve, reject) => {
+      // 1. Define the exact public paths to your assets
+      const assetPaths = {
+        wood: '/assets/obstacle-wood.png',
+        rock: '/assets/obstacle-rock.png',
+        spikeyball: '/assets/obstacle-spikeyball.png' // Adjust filenames to match your folder exactly
+      };
+
+      const typesToLoad = Object.keys(assetPaths);
+      let loadedCount = 0;
+
+      if (typesToLoad.length === 0) {
+        this.isLoaded = true;
+        resolve();
+        return;
+      }
+
+      typesToLoad.forEach((type) => {
+        const img = new Image();
+        img.src = assetPaths[type];
+
+        img.onload = () => {
+          this.images[type] = img;
+          loadedCount++;
+          
+          // Once all obstacles are fully ready, resolve the loader promise
+          if (loadedCount === typesToLoad.length) {
+            this.isLoaded = true;
+            resolve();
+          }
+        };
+
+        img.onerror = () => {
+          // 🚨 Prints the exact culprit if an obstacle filename or folder path is wrong
+          console.error(`🚨 ObstacleManager failed to load asset for type "${type}" at path: ${assetPaths[type]}`);
+          
+          // Resolve anyway so the game doesn't hang forever on a single missing texture
+          loadedCount++;
+          if (loadedCount === typesToLoad.length) {
+            this.isLoaded = true;
+            resolve();
+          }
+        };
+      });
     });
-
-    await Promise.all([
-      loadImg(this.images.wood),
-      loadImg(this.images.rock),
-      loadImg(this.images.spikeyball)
-    ]);
-
-    this.isLoaded = true;
-    return Promise.resolve();
   }
 
-  /**
-   * Selects a random hazard variant based on game layout requirements.
-   */
-  getRandomType() {
-    const randSelector = Math.random();
-    if (randSelector < 0.35) return 'wood';
-    if (randSelector < 0.70) return 'rock';
-    return 'spikeyball';
-  }
-
-  /**
-   * Returns the preloaded HTMLImageElement reference for direct canvas mapping.
-   */
   getImage(type) {
     return this.images[type] || null;
+  }
+
+  getRandomType() {
+    const randomIndex = Math.floor(Math.random() * this.types.length);
+    return this.types[randomIndex];
   }
 }

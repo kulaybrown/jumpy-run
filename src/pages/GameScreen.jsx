@@ -1,18 +1,50 @@
 import React, { useEffect, useRef, useState } from 'react';
+import CharacterSelect from './CharacterSelect'; 
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 import { ObstacleManager } from '../utils/ObstacleManager';
-import farCityImg from '../assets/far-bg.png';
-import midCityImg from '../assets/mid-bg.png';
-import nearCityImg from '../assets/near-bg.png';
+
+// Plain static public paths definition
+const farCityImg = '/assets/far-bg.png';
+const midCityImg = '/assets/mid-bg.png';
+const nearCityImg = '/assets/near-bg.png';
 
 // --- CONFIGURATION TUNING ---
 const MAX_DAILY_ADS = 3;
 const BACKGROUND_ZOOM = 1.1; 
 
+// --- ANIMATION TRACKING ASSET FOLDER ROUTER ---
+const SPRITE_CONFIG_MAP = {
+  jumpy_hero: { folder: 'jumpy', runFrames: 8, jumpFrames: 4, flyFrames: 6 },
+  alien_ace: { folder: 'ace', runFrames: 8, jumpFrames: 4, flyFrames: 6 }, 
+  explorer_ava: { folder: 'ava', runFrames: 8, jumpFrames: 4, flyFrames: 6 },
+  pixel_pixie: { folder: 'pixie', runFrames: 8, jumpFrames: 4, flyFrames: 6 }
+};
+
+// --- SAFE VECTOR CHARACTER COLOR MAPPING FALLBACKS ---
+const FALLBACK_COLOR_MAP = {
+  jumpy_hero: '#a855f7',
+  alien_ace: '#3b82f6',
+  explorer_ava: '#ef4444',
+  pixel_pixie: '#10b981'
+};
+
 export default function GameScreen({ playerColor, onMainMenu }) {
   const canvasRef = useRef(null);
   
+  // Game Character View Control States
+  const [showCharSelect, setShowCharSelect] = useState(true);
+  
+  const [selectedChar, setSelectedChar] = useState({
+    id: 'jumpy_hero',
+    name: 'JUMPY HERO',
+    desc: 'The classic runner',
+    sprite: '🏃‍♂️',
+    speed: 3,
+    jump: 3,
+    boost: null
+  });
+
   // Game Stats States
   const [score, setScore] = useState(0);
   const [distance, setDistance] = useState(0); 
@@ -32,7 +64,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   // --- ECONOMIC, OVERLAY & JUICE FEATURES ---
   const [highScores, setHighScores] = useState([]);
   const [showAdPrompt, setShowAdPrompt] = useState(false);
-  const [adOverlay, setAdOverlay] = useState(null); // ✨ Fixed syntax typo here
+  const [adOverlay, setAdOverlay] = useState(null); 
   const [adCountdown, setAdCountdown] = useState(5);
   const [hasUsedAdRevive, setHasUsedAdRevive] = useState(false);
   const [shakeIntensity, setShakeIntensity] = useState(0);
@@ -67,6 +99,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const obstacleManagerRef = useRef(new ObstacleManager());
 
   const canvasClickHandler = useRef(null);
+
+  // High-performance image sequence frame asset cache loader mapping context
+  const gameplaySpriteCacheRef = useRef({});
 
   // --- INITIALIZATION AND DAILY CAP ROTATION ENGINE ---
   useEffect(() => {
@@ -116,6 +151,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     far.onload = checkBgLoad;
     mid.onload = checkBgLoad;
     near.onload = checkBgLoad;
+
+    far.onerror = () => console.error(`🚨 Background image failed to load at path: ${farCityImg}`);
+    mid.onerror = () => console.error(`🚨 Background image failed to load at path: ${midCityImg}`);
+    near.onerror = () => console.error(`🚨 Background image failed to load at path: ${nearCityImg}`);
 
     obstacleManagerRef.current.initialize().then(() => {
       verifyFinalSetup();
@@ -242,7 +281,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       return;
     }
 
-    // --- TIMED SKILLS OVERLAPPING AND OVERWRITING MATRIX ---
     let extraDuration = skill.duration || 0;
     const conflictGroup = ['gravity', 'fly', 'spring'];
 
@@ -285,6 +323,33 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     setIsGameOverScreen(true);
   };
 
+  // 🎞️ Bulletproof preloader that automatically catches missing actions and routes to idle/0.png
+  const preloadGameplaySprites = (charId) => {
+    const config = SPRITE_CONFIG_MAP[charId] || SPRITE_CONFIG_MAP['jumpy_hero'];
+    const actions = [
+      { name: 'run', frames: config.runFrames },
+      { name: 'jump', frames: config.jumpFrames },
+      { name: 'fly', frames: config.flyFrames }
+    ];
+    
+    actions.forEach(action => {
+      for (let i = 0; i < action.frames; i++) {
+        const key = `${config.folder}_${action.name}_${i}`;
+        if (!gameplaySpriteCacheRef.current[key]) {
+          const img = new Image();
+          img.src = `/assets/animations/${config.folder}/${action.name}/${i}.png`;
+          
+          // 🚨 Smart Fail-safe: If you don't have run/jump folders yet, it uses idle/0.png so it never goes black!
+          img.onerror = () => {
+            img.src = `/assets/animations/${config.folder}/idle/0.png`;
+          };
+          
+          gameplaySpriteCacheRef.current[key] = img;
+        }
+      }
+    });
+  };
+
   const handleRestartRun = () => {
     obstaclesRef.current = [];
     coinsArrayRef.current = [];
@@ -310,7 +375,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   };
 
   useEffect(() => {
-    if (isGameOverScreen || !assetsLoaded) return; 
+    if (isGameOverScreen || !assetsLoaded || showCharSelect) return; 
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
@@ -333,6 +398,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
     let prevActiveIdsStr = '';
 
+    let frameTickTimer = 0;
+    let spriteFrameIndex = 0;
+
     const player = {
       x: 80,
       y: 300,
@@ -342,7 +410,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       velocity: 0,
       jumpStrength: -13,
       isGrounded: false,
-      color: playerColor 
+      color: FALLBACK_COLOR_MAP[selectedChar.id] || playerColor || '#a855f7'
     };
 
     const groundY = 400 - 70; 
@@ -405,7 +473,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       const now = Date.now();
 
-      // --- HIGH-PERFORMANCE HIGH-FREQUENCY STATE BRIDGE BUFFER ---
       const currentActive = [];
       const currentIds = [];
       Object.keys(activeSkillsRef.current).forEach(id => {
@@ -440,15 +507,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       const rawMultiplier = 1 + Math.floor(localDistance / 200) * 0.05;
       const gameSpeedMultiplier = Math.min(rawMultiplier, 3.0); 
 
-      // 🎯 Layer 1: Solid Sky Backdrop
       if (isSkillActive('slow')) ctx.fillStyle = '#1e293b'; 
       else if (isSkillActive('gravity')) ctx.fillStyle = '#2e1065'; 
       else ctx.fillStyle = bgEffects.getSkyColor(Math.floor(localDistance)); 
       ctx.fillRect(0, 0, 800, 400);
 
-      
-
-      // 🎯 Layer 2: Parallax Scenery (Buildings, strictly drawn first)
       bgLayersRef.current.forEach(layer => {
         const dynamicLayerSpeed = isSkillActive('slow') ? layer.speed * 0.6 : layer.speed;
         layer.x -= dynamicLayerSpeed * gameSpeedMultiplier;
@@ -470,8 +533,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       bgEffects.render(ctx, Math.floor(localDistance));
 
-      // --- LAYER START: ENTITIES (Shadows, Player, Enemies) ON FOREGROUND ---
-
       // 🎯 Layer 4: Runner Ground Shadow
       ctx.save();
       const playerCenterX = player.x + player.width / 2;
@@ -491,6 +552,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         player.width = 40; player.height = 40;
       }
 
+      // --- RUNTIME ANIMATION MOTION MATRICES ACTION DECODER ---
+      let runtimeAction = 'run';
+      const spriteConfig = SPRITE_CONFIG_MAP[selectedChar.id] || SPRITE_CONFIG_MAP['jumpy_hero'];
+      let activeMaxFrames = spriteConfig.runFrames;
+
       if (isSkillActive('fly')) {
         let flyOffsetY = 0;
         if (flyEvadeTimerRef.current > 0) {
@@ -500,11 +566,15 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         player.y = Math.min(player.y, groundY - 140 + flyOffsetY); 
         player.velocity = 0;
         player.isGrounded = true;
+        runtimeAction = 'fly';
+        activeMaxFrames = spriteConfig.flyFrames;
       } else if (isSkillActive('gravity')) {
         flyEvadeTimerRef.current = 0;
         player.velocity -= player.gravity; 
         player.y += player.velocity;
         if (player.y <= 0) { player.y = 0; player.velocity = 0; player.isGrounded = true; }
+        runtimeAction = 'fly';
+        activeMaxFrames = spriteConfig.flyFrames;
       } else {
         flyEvadeTimerRef.current = 0;
         player.velocity += player.gravity; 
@@ -512,9 +582,19 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (player.y + player.height >= groundY) {
           player.y = groundY - player.height; player.velocity = 0; player.isGrounded = true;
         }
+        
+        if (!player.isGrounded) {
+          runtimeAction = 'jump';
+          activeMaxFrames = spriteConfig.jumpFrames;
+        }
       }
 
-      // 🎯 Layer 5: Shield Spheres Mesh
+      frameTickTimer++;
+      if (frameTickTimer >= 5) {
+        spriteFrameIndex = (spriteFrameIndex + 1) % activeMaxFrames;
+        frameTickTimer = 0;
+      }
+
       if (shieldCountRef.current > 0) {
         ctx.save();
         ctx.beginPath();
@@ -526,24 +606,34 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.restore();
       }
 
-      // 🎯 Layer 6: Superman Character (Safely on Foreground)
+      // 🎯 Layer 6: Sprite Texture Stream Renderer
       ctx.save();
       ctx.shadowBlur = 15; ctx.shadowOffsetY = 6; ctx.shadowOffsetX = 2;
+      
       if (isSkillActive('invisible')) {
-        ctx.fillStyle = 'rgba(56, 189, 248, 0.4)'; ctx.shadowColor = 'rgba(56, 189, 248, 0.2)'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      } else if (flyEvadeTimerRef.current > 0) {
-        ctx.fillStyle = '#22d3ee'; ctx.shadowColor = '#22d3ee'; ctx.strokeStyle = '#fff';
-      } else if (isSkillActive('sprint')) {
-        ctx.fillStyle = '#f59e0b'; ctx.shadowColor = '#f59e0b'; ctx.strokeStyle = '#fff';
-      } else if (isSkillActive('fly')) {
-        ctx.fillStyle = '#a78bfa'; ctx.shadowColor = '#a78bfa'; ctx.strokeStyle = '#fff';
-      } else if (isSkillActive('gravity')) {
-        ctx.fillStyle = '#ec4899'; ctx.shadowColor = '#ec4899'; ctx.strokeStyle = '#fff';
-      } else {
-        ctx.fillStyle = player.color; ctx.shadowColor = 'rgba(0, 0, 0, 0.5)'; ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.globalAlpha = 0.4;
       }
-      ctx.fillRect(player.x, player.y, player.width, player.height);
-      ctx.lineWidth = 3; ctx.strokeRect(player.x, player.y, player.width, player.height);
+
+      const textureKey = `${spriteConfig.folder}_${runtimeAction}_${spriteFrameIndex}`;
+      let loadedFrameTexture = gameplaySpriteCacheRef.current[textureKey];
+
+      // ✨ On-the-fly mounting fallback if something misses memory allocation
+      if (!loadedFrameTexture) {
+        loadedFrameTexture = new Image();
+        loadedFrameTexture.src = `/assets/animations/${spriteConfig.folder}/${runtimeAction}/${spriteFrameIndex}.png`;
+        loadedFrameTexture.onerror = () => {
+          loadedFrameTexture.src = `/assets/animations/${spriteConfig.folder}/idle/0.png`;
+        };
+        gameplaySpriteCacheRef.current[textureKey] = loadedFrameTexture;
+      }
+
+      if (loadedFrameTexture && loadedFrameTexture.complete && loadedFrameTexture.naturalWidth !== 0) {
+        ctx.drawImage(loadedFrameTexture, player.x, player.y, player.width, player.height);
+      } else {
+        // Safe context fallback block while frame loads in background
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+      }
       ctx.restore();
 
       if (isSkillActive('sonic')) {
@@ -568,7 +658,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         });
       }
 
-      // 🎯 Layer 7: UFO Entity Array (Safely on Foreground)
       for (let i = ufos.length - 1; i >= 0; i--) {
         const ufo = ufos[i];
         ufo.x -= (isSkillActive('slow') ? ufo.speed * 0.5 : ufo.speed) * gameSpeedMultiplier;
@@ -617,7 +706,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (ufo.x + ufo.width < 0) ufos.splice(i, 1);
       }
 
-      // --- 🪵 🪨 MODULAR OBSTACLE GENERATOR ---
       obstacleTimer += gameSpeedMultiplier;
       const currentSpawnRate = isSkillActive('slow') ? spawnRate * 1.5 : spawnRate;
       
@@ -670,7 +758,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (spawnRate > 65 && Math.random() > 0.7) spawnRate -= 1; 
       }
 
-      // 🎯 Layer 8: Render Obstacles cleanly ON FOREGROUND using Manager mapping values
       for (let i = obstacles.length - 1; i >= 0; i--) {
         const obs = obstacles[i];
         const dynamicSpeed = (isSkillActive('slow') ? obs.speed * 0.6 : obs.speed) * gameSpeedMultiplier;
@@ -680,7 +767,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           obs.y = obs.baseY + Math.sin((now / 180) + obs.bobOffset) * 10;
         }
         
-        // --- Spikey Ball Vector Shadow Engine ---
         if (obs.type === 'spikeyball') {
           ctx.save();
           const obsCenterX = obs.x + obs.width / 2;
@@ -735,7 +821,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (obs.x + obs.width < 0) obstacles.splice(i, 1);
       }
 
-      // --- 🪙 SPREADING GOLD PATTERN ENGINE ---
       coinTimer++;
       const currentCoinInterval = isSkillActive('lucky') ? 18 : 50; 
       if (coinTimer > currentCoinInterval) {
@@ -821,7 +906,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       window.removeEventListener('keydown', handleKeyDown); 
       cancelAnimationFrame(animationFrameId); 
     };
-  }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen, assetsLoaded]); 
+  }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen, assetsLoaded, showCharSelect, selectedChar]); 
 
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-900 flex items-center justify-center select-none overflow-hidden p-2 sm:p-6">
@@ -829,9 +914,24 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       {/* 🎮 WIDESCREEN CABINET */}
       <div className="relative w-full max-w-[1400px] aspect-[2/1] bg-slate-950 rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
         
+        {/* 🦸‍♂️ MOUNTED CHARACTER SELECT OVERLAY LAYER */}
+        {assetsLoaded && showCharSelect && (
+          <div className="absolute inset-0 z-50 w-full h-full">
+            <CharacterSelect 
+              onSelectCharacter={(char) => setSelectedChar(char)}
+              onBack={onMainMenu}
+              onStartGame={() => {
+                preloadGameplaySprites(selectedChar.id); 
+                handleRestartRun();
+                setShowCharSelect(false); 
+              }}
+            />
+          </div>
+        )}
+
         {/* Loading Overlay */}
         {!assetsLoaded && (
-          <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center z-50 gap-3">
+          <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center z-40 gap-3">
             <div className="w-10 h-10 border-4 border-t-cyan-400 border-white/10 rounded-full animate-spin" />
             <p className="font-mono text-xs tracking-widest text-slate-400 uppercase animate-pulse">Preloading Level Core Asset Bundles...</p>
           </div>
@@ -849,7 +949,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
             )}
           </div>
           
-          {/* --- ACTIVE MULTI-BADGE MULTIPLEXER HUD --- */}
           <div className="flex flex-wrap gap-1 max-w-[40%] justify-center pointer-events-none">
             {activeSkills.map((sk) => (
               <div key={sk.id} className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full font-bold border border-cyan-400/20 animate-pulse uppercase text-[8px] sm:text-[9px] flex items-center gap-1 whitespace-nowrap">
@@ -981,13 +1080,25 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                 </div>
               )}
 
-              {/* Toy Buttons */}
+              {/* Action Controller Buttons */}
               <div className="flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={handleRestartRun}
+                  onClick={() => {
+                    preloadGameplaySprites(selectedChar.id);
+                    handleRestartRun();
+                  }}
                   className="flex-1 bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-300 hover:to-emerald-400 text-white font-black text-sm md:text-base px-6 py-3.5 rounded-2xl shadow-[0_5px_0px_#047857] hover:shadow-[0_4px_0px_#047857] active:shadow-none border-2 border-green-300/30 transition-all transform hover:-translate-y-0.5 active:translate-y-1 tracking-wider uppercase"
                 >
                   🚀 DASH AGAIN!
+                </button>
+                <button
+                  onClick={() => {
+                    setIsGameOverScreen(false);
+                    setShowCharSelect(true); 
+                  }}
+                  className="px-6 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-bold text-sm rounded-xl transition-all uppercase tracking-wide"
+                >
+                  🦸 Select Runner
                 </button>
                 <button
                   onClick={() => onMainMenu()}

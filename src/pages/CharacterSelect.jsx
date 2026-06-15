@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const CHARACTERS = [
   { 
@@ -6,6 +6,8 @@ const CHARACTERS = [
     name: 'JUMPY HERO', 
     desc: 'The classic runner', 
     sprite: '🏃‍♂️', 
+    folder: 'jumpy',     // 📁 Animation folder route
+    idleFrames: 38,       // 🎞️ Total animation frames inside /idle/
     speed: 3, 
     jump: 3, 
     boost: null 
@@ -15,6 +17,8 @@ const CHARACTERS = [
     name: 'ALIEN ACE', 
     desc: 'Out of this world jump!', 
     sprite: '👽', 
+    folder: 'ace',       // 🚀 Updated folder identifier to match your path
+    idleFrames: 121,
     speed: 2, 
     jump: 5, 
     boost: 'jump' 
@@ -24,6 +28,8 @@ const CHARACTERS = [
     name: 'EXPLORER AVA', 
     desc: 'Quick and agile!', 
     sprite: '🤠', 
+    folder: 'ava',
+    idleFrames: 121,
     speed: 5, 
     jump: 2, 
     boost: 'speed' 
@@ -33,14 +39,63 @@ const CHARACTERS = [
     name: 'PIXEL PIXIE', 
     desc: 'Floats on air!', 
     sprite: '🧚‍♀️', 
+    folder: 'pixie',
+    idleFrames: 88,
     speed: 2, 
     jump: 4, 
     boost: 'jump' 
   },
 ];
 
+// 🎞️ Dynamic Frame Sequencer Component with Emoji Fallback Fall-back Protection
+// Replace the top AnimatedIdleSprite component in CharacterSelect.jsx with this:
+function AnimatedIdleSprite({ folder, fallbackSprite, frameCount = 6 }) {
+  const [currentFrame, setCurrentFrame] = useState(0);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    if (loadFailed) return;
+    
+    const interval = setInterval(() => {
+      setCurrentFrame((prev) => (prev + 1) % frameCount);
+    }, 50);
+    
+    return () => clearInterval(interval);
+  }, [frameCount, loadFailed]);
+
+  const imagePath = `/assets/animations/${folder}/idle/${currentFrame}.png`;
+
+  if (loadFailed) {
+    return (
+      <div className="text-5xl sm:text-6xl filter drop-shadow-[0_4px_0_rgba(0,0,0,0.15)] animate-bounce [animation-duration:5000ms]">
+        {fallbackSprite}
+      </div>
+    );
+  }
+
+  return (
+    <img 
+      src={imagePath} 
+      alt={`${folder} idle animation`}
+      className="w-16 h-16 sm:w-20 sm:h-20 object-contain filter drop-shadow-[0_4px_0_rgba(0,0,0,0.2)]"
+      onError={(e) => {
+        // 🚨 This will print the exact missing path to your browser console!
+        console.error(`🔴 Animation frame failed to load at path: ${imagePath}`);
+        setLoadFailed(true);
+      }}
+    />
+  );
+}
+
 export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame }) {
   const [selectedId, setSelectedId] = useState('jumpy_hero');
+
+  // Auto-sync Jumpy Hero to the parent component immediately on mount
+  useEffect(() => {
+    if (onSelectCharacter) {
+      onSelectCharacter(CHARACTERS[0]);
+    }
+  }, []);
 
   const handleSelect = (char) => {
     setSelectedId(char.id);
@@ -74,7 +129,6 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
           <h2 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.7)] text-center">
             Select your runner
           </h2>
-          {/* Ribbon Ends */}
           <div className="absolute top-1 -left-4 w-4 h-full bg-[#2a4d6c] border-y-4 border-l-4 border-amber-900 -z-10"></div>
           <div className="absolute top-1 -right-4 w-4 h-full bg-[#2a4d6c] border-y-4 border-r-4 border-amber-900 -z-10"></div>
         </div>
@@ -103,9 +157,13 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
                   </p>
                 </div>
 
-                {/* Live Character Visual Avatar Preview */}
-                <div className="my-3 text-5xl sm:text-6xl filter drop-shadow-[0_4px_0_rgba(0,0,0,0.15)] transition-transform duration-200 group-hover:scale-110 animate-bounce [animation-duration:1200ms]">
-                  {char.sprite}
+                {/* 🏃‍♂️ LIVE ANIMATED IDLE SPRITE PREVIEW */}
+                <div className="my-2 h-16 sm:h-20 flex items-center justify-center transition-transform duration-200 hover:scale-110">
+                  <AnimatedIdleSprite 
+                    folder={char.folder} 
+                    fallbackSprite={char.sprite} 
+                    frameCount={char.idleFrames} 
+                  />
                 </div>
 
                 {/* Dynamic Stat Display Bars */}
@@ -142,7 +200,6 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
 
         {/* 🎮 LOWER INTERACTIVE CONTROL HUD FOOTER */}
         <div className="w-full max-w-3xl flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 px-4 pb-2">
-          {/* Back Action Utility Trigger Button */}
           <button
             onClick={onBack}
             className="w-full sm:w-auto px-8 py-3 bg-gradient-to-b from-orange-400 to-red-500 hover:from-orange-300 hover:to-red-400 text-white font-black text-lg sm:text-xl rounded-xl border-4 border-white shadow-[0_6px_0px_#991b1b] active:shadow-none active:translate-y-[6px] transition-all cursor-pointer tracking-tight uppercase"
@@ -150,12 +207,11 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
             Back To Main Menu
           </button>
 
-          {/* Start Progression Action Button */}
           <button
             onClick={onStartGame}
             className="w-full sm:w-auto px-10 py-3 bg-gradient-to-b from-yellow-400 via-orange-400 to-green-500 hover:from-yellow-300 hover:to-green-400 text-white font-black text-xl sm:text-2xl rounded-xl border-4 border-white shadow-[0_6px_0px_#166534] active:shadow-none active:translate-y-[6px] transition-all cursor-pointer tracking-tight uppercase flex items-center justify-center gap-2"
           >
-            <span>Start To Play</span>
+            <span>START</span>
             <span className="text-lg">▶</span>
           </button>
         </div>
