@@ -3,7 +3,7 @@ import React from 'react';
 export default function Button({ onClick }) {
   return (
     <button 
-    
+      onClick={onClick}
       className="
         relative z-20 w-auto p-1 cursor-pointer 
         shadow-[0_0_20px_10px_rgb(255_255_255_/_60%)]
