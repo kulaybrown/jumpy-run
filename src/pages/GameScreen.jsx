@@ -15,10 +15,10 @@ const BACKGROUND_ZOOM = 1.1;
 
 // --- ANIMATION TRACKING ASSET FOLDER ROUTER ---
 const SPRITE_CONFIG_MAP = {
-  jumpy_hero: { folder: 'jumpy', runFrames: 8, jumpFrames: 4, flyFrames: 6 },
-  alien_ace: { folder: 'ace', runFrames: 8, jumpFrames: 4, flyFrames: 6 }, 
-  explorer_ava: { folder: 'ava', runFrames: 8, jumpFrames: 4, flyFrames: 6 },
-  pixel_pixie: { folder: 'pixie', runFrames: 8, jumpFrames: 4, flyFrames: 6 }
+  jumpy_hero: { folder: 'jumpy', runFrames: 6, jumpFrames: 6, flyFrames: 6 },
+  alien_ace: { folder: 'ace', runFrames: 6, jumpFrames: 6, flyFrames: 6 }, 
+  explorer_ava: { folder: 'ava', runFrames: 6, jumpFrames: 6, flyFrames: 6 },   
+  pixel_pixie: { folder: 'pixie', runFrames: 6, jumpFrames: 6, flyFrames: 6 }  
 };
 
 // --- SAFE VECTOR CHARACTER COLOR MAPPING FALLBACKS ---
@@ -323,7 +323,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     setIsGameOverScreen(true);
   };
 
-  // 🎞️ Bulletproof preloader that automatically catches missing actions and routes to idle/0.png
   const preloadGameplaySprites = (charId) => {
     const config = SPRITE_CONFIG_MAP[charId] || SPRITE_CONFIG_MAP['jumpy_hero'];
     const actions = [
@@ -339,7 +338,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           const img = new Image();
           img.src = `/assets/animations/${config.folder}/${action.name}/${i}.png`;
           
-          // 🚨 Smart Fail-safe: If you don't have run/jump folders yet, it uses idle/0.png so it never goes black!
           img.onerror = () => {
             img.src = `/assets/animations/${config.folder}/idle/0.png`;
           };
@@ -385,7 +383,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     canvas.height = 400 * dpr;
 
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingEnabled = false; // Preserves pixel-art styling crispness
 
     let animationFrameId;
     let localScore = score; 
@@ -397,15 +395,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     const fpsInterval = 1000 / 60;
 
     let prevActiveIdsStr = '';
+    let lastLoggedAction = '';
 
     let frameTickTimer = 0;
     let spriteFrameIndex = 0;
 
     const player = {
       x: 80,
-      y: 300,
-      width: 40,
-      height: 40,
+      y: 200,          
+      width: 64,       
+      height: 64,      
       gravity: 0.6,
       velocity: 0,
       jumpStrength: -13,
@@ -547,10 +546,18 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       ctx.restore();
 
       if (isSkillActive('shrink')) {
-        player.width = 20; player.height = 20;
+        player.width = 32; player.height = 32;
       } else {
-        player.width = 40; player.height = 40;
+        player.width = 64; player.height = 64;
       }
+
+      // centered 20% Forgiving Hitbox bounds
+      const hitbox = {
+        width: player.width * 0.8,
+        height: player.height * 0.8,
+        x: player.x + (player.width * 0.1),
+        y: player.y + (player.height * 0.1)
+      };
 
       // --- RUNTIME ANIMATION MOTION MATRICES ACTION DECODER ---
       let runtimeAction = 'run';
@@ -595,6 +602,18 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         frameTickTimer = 0;
       }
 
+      if (runtimeAction !== lastLoggedAction) {
+        let emojiIcon = '🏃‍♂️';
+        if (runtimeAction === 'jump') emojiIcon = '🦘';
+        if (runtimeAction === 'fly') emojiIcon = '🚀';
+        
+        console.log(
+          `%c${emojiIcon} STATE CHANGED ➡️ ${runtimeAction.toUpperCase()}`, 
+          "color: #22d3ee; font-weight: 900; background-color: #0f172a; padding: 4px 8px; border-radius: 6px; border: 1px solid #06b6d4;"
+        );
+        lastLoggedAction = runtimeAction;
+      }
+
       if (shieldCountRef.current > 0) {
         ctx.save();
         ctx.beginPath();
@@ -617,7 +636,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       const textureKey = `${spriteConfig.folder}_${runtimeAction}_${spriteFrameIndex}`;
       let loadedFrameTexture = gameplaySpriteCacheRef.current[textureKey];
 
-      // ✨ On-the-fly mounting fallback if something misses memory allocation
       if (!loadedFrameTexture) {
         loadedFrameTexture = new Image();
         loadedFrameTexture.src = `/assets/animations/${spriteConfig.folder}/${runtimeAction}/${spriteFrameIndex}.png`;
@@ -630,10 +648,21 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       if (loadedFrameTexture && loadedFrameTexture.complete && loadedFrameTexture.naturalWidth !== 0) {
         ctx.drawImage(loadedFrameTexture, player.x, player.y, player.width, player.height);
       } else {
-        // Safe context fallback block while frame loads in background
         ctx.fillStyle = player.color;
         ctx.fillRect(player.x, player.y, player.width, player.height);
       }
+      ctx.restore();
+
+      // 🟢 DEBUG OVERLAY LAYER: RUNNER FORGIVING HITBOX (NEON GREEN)
+      ctx.save();
+      ctx.strokeStyle = '#22c55e'; 
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 4]);     
+      ctx.strokeRect(hitbox.x, hitbox.y, hitbox.width, hitbox.height); 
+      
+      ctx.fillStyle = '#22c55e';
+      ctx.font = '10px monospace';
+      ctx.fillText(`HITBOX W:${Math.floor(hitbox.width)} H:${Math.floor(hitbox.height)}`, hitbox.x, hitbox.y - 6);
       ctx.restore();
 
       if (isSkillActive('sonic')) {
@@ -676,7 +705,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.fill();
         ctx.restore();
 
-        if (player.x < ufo.x + ufo.width && player.x + player.width > ufo.x && player.y < ufo.y + ufo.height && player.y + player.height > ufo.y) {
+        if (hitbox.x < ufo.x + ufo.width && hitbox.x + hitbox.width > ufo.x && hitbox.y < ufo.y + ufo.height && hitbox.y + hitbox.height > ufo.y) {
           if (isSkillActive('invisible') || isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(ufo.x, ufo.y, '#38bdf8'); 
             ufos.splice(i, 1); 
@@ -791,7 +820,20 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
         ctx.restore();
 
-        if (player.x < obs.x + obs.width && player.x + player.width > obs.x && player.y < obs.y + obs.height && player.y + player.height > obs.y) {
+        // 🔴 NEW OVERLAY LAYER: OBSTACLE BOUNDING BOXES (NEON RED)
+        ctx.save();
+        ctx.strokeStyle = '#ef4444'; // Bright crimson border
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);     // Matching dashed layout
+        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        
+        // Metadata text identifier overhead
+        ctx.fillStyle = '#ef4444';
+        ctx.font = '10px monospace';
+        ctx.fillText(`${obs.type.toUpperCase()} W:${obs.width}`, obs.x, obs.y - 6);
+        ctx.restore();
+
+        if (hitbox.x < obs.x + obs.width && hitbox.x + hitbox.width > obs.x && hitbox.y < obs.y + obs.height && hitbox.y + hitbox.height > obs.y) {
           if (isSkillActive('invisible') || isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(obs.x, obs.y, '#f59e0b', 6); 
             obstacles.splice(i, 1); 
@@ -910,11 +952,8 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
   return (
     <div className="absolute inset-0 w-full h-full bg-slate-900 flex items-center justify-center select-none overflow-hidden p-2 sm:p-6">
-      
-      {/* 🎮 WIDESCREEN CABINET */}
       <div className="relative w-full max-w-[1400px] aspect-[2/1] bg-slate-950 rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
         
-        {/* 🦸‍♂️ MOUNTED CHARACTER SELECT OVERLAY LAYER */}
         {assetsLoaded && showCharSelect && (
           <div className="absolute inset-0 z-50 w-full h-full">
             <CharacterSelect 
@@ -929,7 +968,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           </div>
         )}
 
-        {/* Loading Overlay */}
         {!assetsLoaded && (
           <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center z-40 gap-3">
             <div className="w-10 h-10 border-4 border-t-cyan-400 border-white/10 rounded-full animate-spin" />

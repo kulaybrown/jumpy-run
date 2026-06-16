@@ -7,7 +7,7 @@ const CHARACTERS = [
     desc: 'The classic runner', 
     sprite: '🏃‍♂️', 
     folder: 'jumpy',     // 📁 Animation folder route
-    idleFrames: 38,       // 🎞️ Total animation frames inside /idle/
+    idleFrames: 6,       // 🎞️ Total animation frames inside /idle/
     speed: 3, 
     jump: 3, 
     boost: null 
@@ -18,7 +18,7 @@ const CHARACTERS = [
     desc: 'Out of this world jump!', 
     sprite: '👽', 
     folder: 'ace',       // 🚀 Updated folder identifier to match your path
-    idleFrames: 121,
+    idleFrames: 6,
     speed: 2, 
     jump: 5, 
     boost: 'jump' 
@@ -29,7 +29,7 @@ const CHARACTERS = [
     desc: 'Quick and agile!', 
     sprite: '🤠', 
     folder: 'ava',
-    idleFrames: 121,
+    idleFrames: 6,
     speed: 5, 
     jump: 2, 
     boost: 'speed' 
@@ -40,7 +40,7 @@ const CHARACTERS = [
     desc: 'Floats on air!', 
     sprite: '🧚‍♀️', 
     folder: 'pixie',
-    idleFrames: 88,
+    idleFrames: 6,
     speed: 2, 
     jump: 4, 
     boost: 'jump' 
@@ -58,7 +58,7 @@ function AnimatedIdleSprite({ folder, fallbackSprite, frameCount = 6 }) {
     
     const interval = setInterval(() => {
       setCurrentFrame((prev) => (prev + 1) % frameCount);
-    }, 50);
+    }, 120);
     
     return () => clearInterval(interval);
   }, [frameCount, loadFailed]);
