@@ -29,6 +29,31 @@ const FALLBACK_COLOR_MAP = {
   pixel_pixie: '#10b981'
 };
 
+// 🛡️ Each hero's shield ring uses its own color instead of one shared cyan
+const SHIELD_COLOR_MAP = {
+  jumpy_hero: '#38bdf8',   // sky blue
+  alien_ace: '#166534',    // dark green
+  explorer_ava: '#c19a6b', // light brown
+  pixel_pixie: '#ec4899'   // pink
+};
+
+// 🔁 Characters whose default skill re-activates itself on a fixed timer
+// throughout the run (in addition to being granted at the very start).
+const AUTO_SKILL_INTERVAL_MAP = {
+  alien_ace: { id: 'invisible', interval: 20000 },   // Ghost Walk every 20s
+  explorer_ava: { id: 'sonic', interval: 15000 },    // Sonic Pulse every 15s
+  pixel_pixie: { id: 'spring', interval: 20000 },    // Bounce Boots every 20s
+};
+
+const hexToRgba = (hex, alpha) => {
+  const h = hex.replace('#', '');
+  const bigint = parseInt(h, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 export default function GameScreen({ playerColor, onMainMenu }) {
   const canvasRef = useRef(null);
   
@@ -42,7 +67,8 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     sprite: '🏃‍♂️',
     speed: 3,
     jump: 3,
-    boost: null
+    boost: null,
+    startSkills: ['revive', 'shield']
   });
 
   // Game Stats States
@@ -85,6 +111,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   
   // Ref tracker for active flying dodge maneuvers
   const flyEvadeTimerRef = useRef(0);
+
+  // Tracks when each character's recurring default skill should next re-fire
+  const autoSkillNextTriggerRef = useRef(0);
 
   // Dictionary collection to map multi-skill stacking streams: { [skillId]: { expires, name, icon } }
   const activeSkillsRef = useRef({});
@@ -357,15 +386,38 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     reviveCountRef.current = 0;
     flyEvadeTimerRef.current = 0;
     activeSkillsRef.current = {};
+    autoSkillNextTriggerRef.current = Date.now() + (AUTO_SKILL_INTERVAL_MAP[selectedChar.id]?.interval || Infinity);
     
     nextSkillMilestoneRef.current = 400; 
+
+    // 🎁 Grant each character's default starting skill loadout (set in
+    // CharacterSelect.jsx via startSkills). 'shield'/'revive' bump their
+    // stock counters; any other skill id is activated from SKILLS_REGISTRY
+    // using its normal duration/name/icon.
+    const startSkillIds = selectedChar.startSkills || [];
+    startSkillIds.forEach((id) => {
+      if (id === 'shield') {
+        shieldCountRef.current = Math.min(5, shieldCountRef.current + 1);
+      } else if (id === 'revive') {
+        reviveCountRef.current = Math.min(2, reviveCountRef.current + 1);
+      } else {
+        const skillDef = SKILLS_REGISTRY.find((s) => s.id === id);
+        if (skillDef) {
+          activeSkillsRef.current[id] = {
+            expires: Date.now() + (skillDef.duration || 8000),
+            name: skillDef.name,
+            icon: skillDef.icon
+          };
+        }
+      }
+    });
     
     setScore(0);
     setDistance(0);
     setCoins(0);
-    setShieldCount(0);
-    setReviveCount(0);
-    setActiveSkills([]);
+    setShieldCount(shieldCountRef.current);
+    setReviveCount(reviveCountRef.current);
+    setActiveSkills(Object.entries(activeSkillsRef.current).map(([id, v]) => ({ id, name: v.name, icon: v.icon })));
     setHasUsedAdRevive(false);
     setIsGameOverScreen(false);
     setShowAdPrompt(false);
@@ -383,7 +435,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     canvas.height = 400 * dpr;
 
     ctx.scale(dpr, dpr);
-    ctx.imageSmoothingEnabled = false; // Preserves pixel-art styling crispness
+    // imageSmoothingEnabled is now toggled per-layer (see render loop below)
+    // instead of being forced off globally here. far-bg/mid-bg are smooth
+    // painterly art and need smoothing ON when scaled up; near-bg + character
+    // sprites are pixel art and need smoothing OFF to stay crisp. Forcing it
+    // off globally made far-bg/mid-bg look blotchy/low-quality when scaled.
 
     let animationFrameId;
     let localScore = score; 
@@ -472,6 +528,19 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       const now = Date.now();
 
+      const autoSkillConfig = AUTO_SKILL_INTERVAL_MAP[selectedChar.id];
+      if (autoSkillConfig && now >= autoSkillNextTriggerRef.current) {
+        const skillDef = SKILLS_REGISTRY.find((s) => s.id === autoSkillConfig.id);
+        if (skillDef) {
+          activeSkillsRef.current[autoSkillConfig.id] = {
+            expires: now + (skillDef.duration || 8000),
+            name: skillDef.name,
+            icon: skillDef.icon
+          };
+        }
+        autoSkillNextTriggerRef.current = now + autoSkillConfig.interval;
+      }
+
       const currentActive = [];
       const currentIds = [];
       Object.keys(activeSkillsRef.current).forEach(id => {
@@ -511,7 +580,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       else ctx.fillStyle = bgEffects.getSkyColor(Math.floor(localDistance)); 
       ctx.fillRect(0, 0, 800, 400);
 
-      bgLayersRef.current.forEach(layer => {
+      bgLayersRef.current.forEach((layer, layerIndex) => {
         const dynamicLayerSpeed = isSkillActive('slow') ? layer.speed * 0.6 : layer.speed;
         layer.x -= dynamicLayerSpeed * gameSpeedMultiplier;
         
@@ -524,11 +593,25 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           layer.x += scaledWidth; 
         }
 
+        // far (0) and mid (1) layers are smooth painterly art -> smoothing ON.
+        // near (2) layer is pixel-art style -> smoothing OFF for crisp edges.
+        ctx.imageSmoothingEnabled = layerIndex !== 2;
+        ctx.imageSmoothingQuality = 'high';
+
         if (scaledWidth > 0) {
-          ctx.drawImage(layer.img, layer.x, yOffset, scaledWidth, imgHeight);
-          ctx.drawImage(layer.img, layer.x + scaledWidth, yOffset, scaledWidth, imgHeight);
+          // Round to whole pixels and overlap tiles by 1px to eliminate the
+          // hairline seam that appears when layer.x / scaledWidth are
+          // fractional (sub-pixel gaps between the two drawImage calls).
+          const drawX = Math.round(layer.x);
+          const tileW = Math.ceil(scaledWidth) + 1;
+          ctx.drawImage(layer.img, drawX, yOffset, tileW, imgHeight);
+          ctx.drawImage(layer.img, drawX + Math.round(scaledWidth), yOffset, tileW, imgHeight);
         }
       });
+
+      // Restore pixel-art crispness for everything drawn after this point
+      // (player sprite, obstacles) since near-bg already used its own setting.
+      ctx.imageSmoothingEnabled = false;
 
       bgEffects.render(ctx, Math.floor(localDistance));
 
@@ -616,11 +699,28 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       if (shieldCountRef.current > 0) {
         ctx.save();
-        ctx.beginPath();
         const shieldRadius = 26 + (shieldCountRef.current * 4);
-        ctx.arc(player.x + player.width/2, player.y + player.height/2, shieldRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(34, 211, 238, ${0.2 + shieldCountRef.current * 0.15})`;
-        ctx.lineWidth = 3; ctx.shadowBlur = 10; ctx.shadowColor = '#22d3ee';
+        const shieldColor = SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee';
+        const cx = player.x + player.width / 2;
+        const cy = player.y + player.height / 2;
+        const baseAlpha = 0.15 + shieldCountRef.current * 0.06;
+
+        // Filled radial gradient glow (center bright/transparent -> edge colored -> fully fades out)
+        const gradient = ctx.createRadialGradient(cx, cy, shieldRadius * 0.3, cx, cy, shieldRadius);
+        gradient.addColorStop(0, hexToRgba(shieldColor, 0));
+        gradient.addColorStop(0.7, hexToRgba(shieldColor, baseAlpha));
+        gradient.addColorStop(1, hexToRgba(shieldColor, 0));
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+
+        // Thin outer rim to keep the shield edge readable
+        ctx.beginPath();
+        ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = hexToRgba(shieldColor, 0.4 + shieldCountRef.current * 0.1);
+        ctx.lineWidth = 2; ctx.shadowBlur = 12; ctx.shadowColor = shieldColor;
         ctx.stroke();
         ctx.restore();
       }
@@ -651,18 +751,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.fillStyle = player.color;
         ctx.fillRect(player.x, player.y, player.width, player.height);
       }
-      ctx.restore();
-
-      // 🟢 DEBUG OVERLAY LAYER: RUNNER FORGIVING HITBOX (NEON GREEN)
-      ctx.save();
-      ctx.strokeStyle = '#22c55e'; 
-      ctx.lineWidth = 2;
-      ctx.setLineDash([4, 4]);     
-      ctx.strokeRect(hitbox.x, hitbox.y, hitbox.width, hitbox.height); 
-      
-      ctx.fillStyle = '#22c55e';
-      ctx.font = '10px monospace';
-      ctx.fillText(`HITBOX W:${Math.floor(hitbox.width)} H:${Math.floor(hitbox.height)}`, hitbox.x, hitbox.y - 6);
       ctx.restore();
 
       if (isSkillActive('sonic')) {
@@ -706,14 +794,17 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.restore();
 
         if (hitbox.x < ufo.x + ufo.width && hitbox.x + hitbox.width > ufo.x && hitbox.y < ufo.y + ufo.height && hitbox.y + hitbox.height > ufo.y) {
-          if (isSkillActive('invisible') || isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
+          if (isSkillActive('invisible')) {
+            continue; // Ghost mode: phase straight through, UFO stays intact
+          }
+          if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(ufo.x, ufo.y, '#38bdf8'); 
             ufos.splice(i, 1); 
             continue; 
           }
           
           triggerShake(8); 
-          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(ufo.x, ufo.y, '#22d3ee'); ufos.splice(i, 1); continue; }
+          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(ufo.x, ufo.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); ufos.splice(i, 1); continue; }
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); ufos.length = 0; obstacles.length = 0;
             activeSkillsRef.current['invisible'] = { expires: Date.now() + 3000, name: 'Ghost Walk', icon: '👻' };
@@ -820,28 +911,18 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
         ctx.restore();
 
-        // 🔴 NEW OVERLAY LAYER: OBSTACLE BOUNDING BOXES (NEON RED)
-        ctx.save();
-        ctx.strokeStyle = '#ef4444'; // Bright crimson border
-        ctx.lineWidth = 2;
-        ctx.setLineDash([4, 4]);     // Matching dashed layout
-        ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
-        
-        // Metadata text identifier overhead
-        ctx.fillStyle = '#ef4444';
-        ctx.font = '10px monospace';
-        ctx.fillText(`${obs.type.toUpperCase()} W:${obs.width}`, obs.x, obs.y - 6);
-        ctx.restore();
-
         if (hitbox.x < obs.x + obs.width && hitbox.x + hitbox.width > obs.x && hitbox.y < obs.y + obs.height && hitbox.y + hitbox.height > obs.y) {
-          if (isSkillActive('invisible') || isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
+          if (isSkillActive('invisible')) {
+            continue; // Ghost mode: phase straight through, obstacle stays intact
+          }
+          if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(obs.x, obs.y, '#f59e0b', 6); 
             obstacles.splice(i, 1); 
             continue; 
           }
           
           triggerShake(8); 
-          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(obs.x, obs.y, '#22d3ee'); obstacles.splice(i, 1); continue; }
+          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(obs.x, obs.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); obstacles.splice(i, 1); continue; }
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); obstacles.length = 0; ufos.length = 0;
             activeSkillsRef.current['invisible'] = { expires: Date.now() + 3000, name: 'Ghost Walk', icon: '👻' };
@@ -976,21 +1057,21 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         )}
 
         {/* Game HUD */}
-        <div className="absolute top-4 left-4 right-4 flex justify-between items-center bg-slate-950/70 pointer-events-none px-4 py-2 rounded-xl backdrop-blur-xs border border-white/10 z-10 text-[10px] sm:text-xs md:text-sm font-bold tracking-wide">
+        <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none px-4 py-2 z-10 text-[10px] sm:text-xs md:text-sm font-bold tracking-wide [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
           <div className="flex items-center gap-3">
             <div className="text-cyan-400">🚩 DISTANCE: <span className="text-white">{distance}m</span></div>
             {shieldCount > 0 && (
-              <div className="flex items-center gap-1 bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 px-2 py-0.5 rounded-md text-[9px] sm:text-[11px] font-black animate-bounce">🛡️ {shieldCount}/5</div>
+              <div className="flex items-center gap-1 bg-cyan-600 text-white border border-cyan-400/40 px-2 py-0.5 rounded-md text-[9px] sm:text-[11px] font-black shadow-md">🛡️ {shieldCount}/5</div>
             )}
             {reviveCount > 0 && (
-              <div className="flex items-center gap-1 bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 rounded-md text-[9px] sm:text-[11px] font-black">❤️ {reviveCount}/2</div>
+              <div className="flex items-center gap-1 bg-rose-600 text-white border border-rose-400/40 px-2 py-0.5 rounded-md text-[9px] sm:text-[11px] font-black shadow-md">❤️ {reviveCount}/2</div>
             )}
           </div>
           
           <div className="flex flex-wrap gap-1 max-w-[40%] justify-center pointer-events-none">
             {activeSkills.map((sk) => (
-              <div key={sk.id} className="px-2 py-0.5 bg-cyan-500/20 text-cyan-300 rounded-full font-bold border border-cyan-400/20 animate-pulse uppercase text-[8px] sm:text-[9px] flex items-center gap-1 whitespace-nowrap">
-                <span>{sk.icon} {sk.name}</span>
+              <div key={sk.id} className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center bg-cyan-600 text-white rounded-full border border-cyan-400/40 animate-pulse text-sm sm:text-base shadow-md">
+                <span>{sk.icon}</span>
               </div>
             ))}
           </div>

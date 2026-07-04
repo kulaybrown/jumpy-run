@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { SKILLS_REGISTRY } from '../skillsData';
 
 const CHARACTERS = [
   { 
@@ -10,7 +11,8 @@ const CHARACTERS = [
     idleFrames: 6,       // 🎞️ Total animation frames inside /idle/
     speed: 3, 
     jump: 3, 
-    boost: null 
+    boost: null,
+    startSkills: ['revive', 'shield']   // ❤️ 1 heart + 🛡️ 1 shield
   },
   { 
     id: 'alien_ace', 
@@ -21,7 +23,8 @@ const CHARACTERS = [
     idleFrames: 6,
     speed: 2, 
     jump: 5, 
-    boost: 'jump' 
+    boost: 'jump',
+    startSkills: ['invisible']          // 👻 Ghost Walk
   },
   { 
     id: 'explorer_ava', 
@@ -32,7 +35,8 @@ const CHARACTERS = [
     idleFrames: 6,
     speed: 5, 
     jump: 2, 
-    boost: 'speed' 
+    boost: 'speed',
+    startSkills: ['sonic']               // 🔊 Sonic Pulse
   },
   { 
     id: 'pixel_pixie', 
@@ -43,7 +47,8 @@ const CHARACTERS = [
     idleFrames: 6,
     speed: 2, 
     jump: 4, 
-    boost: 'jump' 
+    boost: 'jump',
+    startSkills: ['spring']              // 👟 Bounce Boots (jump)
   },
 ];
 
@@ -152,9 +157,6 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
                   <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight leading-tight">
                     {char.name}
                   </h3>
-                  <p className="text-[11px] sm:text-xs font-bold text-amber-900/80 mt-0.5 min-h-[32px]">
-                    {char.desc}
-                  </p>
                 </div>
 
                 {/* 🏃‍♂️ LIVE ANIMATED IDLE SPRITE PREVIEW */}
@@ -168,24 +170,23 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
 
                 {/* Dynamic Stat Display Bars */}
                 <div className="w-full space-y-2 pt-2 border-t border-amber-900/10">
-                  {/* Speed Parameter */}
-                  <div className="flex items-center justify-center gap-2">
-                    <div className={`p-1 rounded-md text-sm border-2 border-amber-900/20 ${char.boost === 'speed' ? 'bg-cyan-400 shadow-[0_0_8px_#22d3ee]' : 'bg-amber-200'}`}>
-                      🥾
-                    </div>
-                    <span className="text-xs sm:text-sm font-black text-slate-700">
-                      Speed: {char.speed}
-                    </span>
-                  </div>
-
-                  {/* Jump Parameter */}
-                  <div className="flex items-center justify-center gap-2">
-                    <div className={`p-1 rounded-md text-sm border-2 border-amber-900/20 ${char.boost === 'jump' ? 'bg-green-400 shadow-[0_0_8px_#4ade80]' : 'bg-red-400'}`}>
-                      ❤️
-                    </div>
-                    <span className="text-xs sm:text-sm font-black text-slate-700">
-                      Jump: {char.jump}
-                    </span>
+                  {/* 🎁 Default Skill(s) - resolved from skillsData.js by id */}
+                  <div className="flex flex-col items-center justify-center gap-1 pt-1">
+                    {(char.startSkills || []).map((skillId) => {
+                      const skillDef = SKILLS_REGISTRY.find((s) => s.id === skillId);
+                      if (!skillDef) return null;
+                      return (
+                        <div
+                          key={skillId}
+                          className="flex items-center gap-1.5 bg-purple-100 border-2 border-purple-400/40 rounded-md px-2 py-0.5 shadow-[0_0_6px_rgba(168,85,247,0.3)]"
+                        >
+                          <span className="text-sm">{skillDef.icon}</span>
+                          <span className="text-[9px] sm:text-[10px] font-black text-purple-800 uppercase tracking-tight">
+                            {skillDef.name}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 
