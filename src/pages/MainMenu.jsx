@@ -3,13 +3,29 @@ import Button from '../components/Button';
 
 export default function MainMenu({ onStartGame }) {
   return (
-    <div className="relative inset-0 flex flex-col items-center justify-between w-full max-w-[1400px] aspect-[2/1] bg-gradient-to-b from-[#4facfe] via-[#7ae0ff] via-[#b3f5ff] via-[#b4f6b2] to-[#44b051] overflow-hidden select-none font-sans p-4 border-[12px] border-amber-700 md:border-[16px] shadow-[inset_0_0_0_4px_#f59e0b]">
-      
-      {/* 🖼️ PIXEL ART FRAME CORNERS */}
-      <div className="absolute top-0 left-0 w-4 h-4 bg-yellow-400 border-b-4 border-r-4 border-amber-900 z-50"></div>
-      <div className="absolute top-0 right-0 w-4 h-4 bg-yellow-400 border-b-4 border-l-4 border-amber-900 z-50"></div>
-      <div className="absolute bottom-0 left-0 w-4 h-4 bg-yellow-400 border-t-4 border-r-4 border-amber-900 z-50"></div>
-      <div className="absolute bottom-0 right-0 w-4 h-4 bg-yellow-400 border-t-4 border-l-4 border-amber-900 z-50"></div>
+    <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] overflow-hidden select-none font-sans bg-[url('/assets/main-menu-bg.jpg')] bg-cover bg-center">
+
+      {/* 🖼️ PIXEL ART BORDER FRAME (repeating edge tiles + corner images) */}
+      {/* Using the small-screen asset set (44x44 corners) at every breakpoint. */}
+      <div className="absolute inset-0 z-50 pointer-events-none">
+        {/* Corners: 44px */}
+        <div className="absolute top-0 left-0 w-11 h-11 bg-[url('/assets/border/top-left.png')] bg-no-repeat bg-contain" />
+        <div className="absolute top-0 right-0 w-11 h-11 bg-[url('/assets/border/top-right.png')] bg-no-repeat bg-contain" />
+        <div className="absolute bottom-0 left-0 w-11 h-11 bg-[url('/assets/border/bot-left.png')] bg-no-repeat bg-contain" />
+        <div className="absolute bottom-0 right-0 w-11 h-11 bg-[url('/assets/border/bot-right.png')] bg-no-repeat bg-contain" />
+
+        {/* line-top: 10px thick / 1.5px tile */}
+        <div className="absolute top-0 left-11 right-11 h-[10px] bg-[url('/assets/border/line-top.png')] bg-repeat-x bg-[length:1.5px]" />
+        {/* line-bot: 10px thick / 1.5px tile */}
+        <div className="absolute bottom-0 left-11 right-11 h-[10px] bg-[url('/assets/border/line-bot.png')] bg-repeat-x bg-[length:1.5px]" />
+        {/* line-left: 11px thick / 11px tile */}
+        <div className="absolute left-0 top-11 bottom-11 w-[11px] bg-[url('/assets/border/line-left.png')] bg-repeat-y bg-[length:11px]" />
+        {/* line-right: 11px thick / 11px tile */}
+        <div className="absolute right-0 top-11 bottom-11 w-[11px] bg-[url('/assets/border/line-right.png')] bg-repeat-y bg-[length:11px]" />
+      </div>
+
+      {/* Inner padded content area, padding matches the corner size */}
+      <div className="relative w-full h-full flex flex-col items-center justify-between p-11">
 
       {/* ☀️ BACKGROUND ENVIRONMENT ELEMENTS */}
       {/* Bright Pixel Sun */}
@@ -19,42 +35,42 @@ export default function MainMenu({ onStartGame }) {
       
       {/* Pixel Clouds */}
       <div className="absolute top-[6%] left-[4%] text-3xl opacity-80 hidden md:block">☁️</div>
-      <div className="absolute top-[12%] right-[10%] text-4xl opacity-80 hidden md:block">☁️</div>
-      <div className="absolute bottom-[8%] left-[4%] text-4xl opacity-90 animate-bounce duration-[3000ms]">☁️</div>
-      <div className="absolute bottom-[5%] right-[12%] text-5xl opacity-90">☁️</div>
+      <div className="absolute top-[10%] right-[10%] text-4xl opacity-80 hidden md:block">☁️</div>
+      <div className="absolute bottom-[6%] left-[3%] text-5xl opacity-90">☁️</div>
 
       {/* Background Mountains & Castle */}
       <div className="absolute bottom-[35%] left-[5%] text-6xl opacity-30 hidden lg:block">🏔️</div>
-      <div className="absolute bottom-[38%] right-[15%] text-6xl opacity-40 hidden md:block">🏰</div>
+      <div className="absolute bottom-[38%] right-[12%] text-6xl opacity-40 hidden md:block">🏰</div>
 
-      {/* Trees & Flowers Decorating the Grass Hills */}
+      {/* Trees Decorating the Grass Hills */}
       <div className="absolute bottom-[25%] left-[2%] text-5xl hidden sm:block">🌳</div>
       <div className="absolute bottom-[18%] left-[8%] text-4xl">🌲</div>
       <div className="absolute bottom-[28%] right-[2%] text-5xl hidden sm:block">🌳</div>
-      <div className="absolute bottom-[15%] left-[16%] text-xl">🌷</div>
-      <div className="absolute bottom-[12%] left-[22%] text-xl">🌻</div>
-      <div className="absolute bottom-[14%] right-[25%] text-xl">🌹</div>
+      <div className="absolute bottom-[14%] right-[8%] text-xl">🌷</div>
 
-      {/* 👾 SPRITES & GAMEPLAY OBJECTS (Scattered along the pathway layout) */}
-      {/* Obstacles & Monsters */}
-      <div className="absolute bottom-[42%] left-[20%] text-3xl animate-bounce duration-[1500ms]">🐷</div>
-      <div className="absolute bottom-[32%] left-[23%] text-4xl animate-bounce duration-[900ms]">😈</div>
-      <div className="absolute bottom-[40%] left-[15%] text-3xl animate-pulse">🐙</div>
-      <div className="absolute bottom-[35%] left-[35%] text-3xl animate-spin duration-[3000ms]">👾</div>
-      <div className="absolute bottom-[30%] right-[38%] text-4xl filter drop-shadow-md">🦔</div>
-      <div className="absolute bottom-[45%] right-[18%] text-4xl animate-pulse">🍄</div>
-      <div className="absolute bottom-[22%] right-[8%] text-3xl">🍄</div>
+      {/* 👾 SPRITES & GAMEPLAY OBJECTS (matched to reference layout) */}
+      {/* Left side: blob + pig */}
+      <div className="absolute bottom-[38%] left-[16%] text-4xl animate-pulse">🫧</div>
+      <div className="absolute bottom-[34%] left-[22%] text-3xl animate-bounce duration-[1500ms]">🐷</div>
 
-      {/* Collectible Coins & Stars */}
-      <div className="absolute bottom-[48%] left-[28%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1100ms]">🪙</div>
-      <div className="absolute bottom-[54%] left-[34%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1300ms]">🪙</div>
-      <div className="absolute bottom-[58%] left-[40%] text-4xl text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.8)] animate-pulse">⭐</div>
-      <div className="absolute bottom-[48%] right-[32%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1000ms]">🪙</div>
-      <div className="absolute bottom-[42%] right-[25%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1200ms]">🪙</div>
-      <div className="absolute bottom-[36%] right-[20%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1400ms]">🪙</div>
+      {/* Flanking the hero: orange monster (left) + green monster (right) */}
+      <div className="absolute bottom-[32%] left-[28%] text-4xl animate-bounce duration-[1000ms]">👹</div>
+      <div className="absolute bottom-[32%] left-[38%] text-4xl animate-bounce duration-[1100ms]">👾</div>
+
+      {/* Right side: spike ball obstacle + mushrooms */}
+      <div className="absolute bottom-[30%] right-[22%] text-4xl">🦔</div>
+      <div className="absolute bottom-[42%] right-[12%] text-4xl">🍄</div>
+      <div className="absolute bottom-[22%] right-[6%] text-3xl">🍄</div>
+
+      {/* Collectible Coins & Star, arcing over the hero */}
+      <div className="absolute bottom-[46%] left-[30%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1100ms]">🪙</div>
+      <div className="absolute bottom-[52%] left-[36%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1300ms]">🪙</div>
+      <div className="absolute bottom-[56%] left-[42%] text-4xl text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.8)] animate-pulse">⭐</div>
+      <div className="absolute bottom-[52%] right-[30%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1000ms]">🪙</div>
+      <div className="absolute bottom-[46%] right-[24%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1200ms]">🪙</div>
 
       {/* 🏃 HERO CHARACTER (Center Stage) */}
-      <div className="absolute bottom-[40%] left-[1/2] -translate-x-1/2 flex flex-col items-center animate-bounce duration-[600ms]">
+      <div className="absolute bottom-[40%] left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce duration-[600ms]">
         <div className="text-6xl filter drop-shadow-[0_4px_0_rgba(0,0,0,0.3)]">🏃‍♂️</div>
       </div>
 
@@ -108,6 +124,7 @@ export default function MainMenu({ onStartGame }) {
           <div className="text-base animate-pulse hidden sm:inline-block">👆</div>
         </div>
 
+      </div>
       </div>
     </div>
   );
