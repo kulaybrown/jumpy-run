@@ -8,7 +8,7 @@ export default function Button({ onClick }) {
         relative z-20 w-auto p-1 cursor-pointer 
         shadow-[0_0_20px_10px_rgb(255_255_255_/_60%)]
         bg-[#000000]
-        active:mt-2
+        active:top-1
         transition duration-100 ease-in-out
 
         before:content-['']

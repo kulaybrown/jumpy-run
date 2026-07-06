@@ -1,9 +1,44 @@
 import React from 'react';
 import Button from '../components/Button';
 
+// Cycles through numbered frame images, e.g. /assets/animations/monster1/idle/frame1.png, frame2.png, ...
+// Adjust frameCount / frameDuration per asset once the real frame counts are known.
+function FrameAnimation({ basePath, frameCount = 4, frameDuration = 150, extension = 'png', alt = '', className = '' }) {
+  const [frame, setFrame] = React.useState(1);
+
+  React.useEffect(() => {
+    const id = setInterval(() => {
+      setFrame((f) => (f % frameCount) + 1);
+    }, frameDuration);
+    return () => clearInterval(id);
+  }, [frameCount, frameDuration]);
+
+  return <img src={`${basePath}/${frame}.${extension}`} alt={alt} className={className} />;
+}
+
+// A ground shadow that shrinks/fades when its object is at the top of its bounce
+// and grows/darkens when the object lands - pass the SAME duration as the bounce above it.
+function BounceShadow({ duration = '1000ms', className = '' }) {
+  return (
+    <div
+      className={`absolute left-1/2 bg-black/40 rounded-full blur-[2px] ${className}`}
+      style={{
+        transform: 'translateX(-50%)',
+        animation: `shadowPulse ${duration} ease-in-out infinite`,
+      }}
+    />
+  );
+}
+
 export default function MainMenu({ onStartGame }) {
   return (
     <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] overflow-hidden select-none font-sans bg-[url('/assets/main-menu-bg.jpg')] bg-cover bg-center">
+      <style>{`
+        @keyframes shadowPulse {
+          0%, 100% { transform: translateX(-50%) scale(0.55); opacity: 0.25; }
+          50% { transform: translateX(-50%) scale(1); opacity: 0.55; }
+        }
+      `}</style>
 
       {/* 🖼️ PIXEL ART BORDER FRAME (repeating edge tiles + corner images) */}
       {/* Using the small-screen asset set (44x44 corners) at every breakpoint. */}
@@ -25,73 +60,184 @@ export default function MainMenu({ onStartGame }) {
       </div>
 
       {/* Inner padded content area, padding matches the corner size */}
-      <div className="relative w-full h-full flex flex-col items-center justify-between p-11">
+      <div className="relative w-full h-full flex flex-col items-center justify-between p-5">
 
       {/* ☀️ BACKGROUND ENVIRONMENT ELEMENTS */}
       {/* Bright Pixel Sun */}
       <div className="absolute top-[8%] left-[15%] flex flex-col items-center justify-center animate-pulse">
-        <div className="text-6xl filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]">☀️</div>
+        <img src="/assets/sun.png" alt="Sun" className="md:w-20 md:h-20 lg:w-25 lg:h-25 filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]" />
       </div>
-      
-      {/* Pixel Clouds */}
-      <div className="absolute top-[6%] left-[4%] text-3xl opacity-80 hidden md:block">☁️</div>
-      <div className="absolute top-[10%] right-[10%] text-4xl opacity-80 hidden md:block">☁️</div>
-      <div className="absolute bottom-[6%] left-[3%] text-5xl opacity-90">☁️</div>
 
-      {/* Background Mountains & Castle */}
-      <div className="absolute bottom-[35%] left-[5%] text-6xl opacity-30 hidden lg:block">🏔️</div>
-      <div className="absolute bottom-[38%] right-[12%] text-6xl opacity-40 hidden md:block">🏰</div>
-
-      {/* Trees Decorating the Grass Hills */}
-      <div className="absolute bottom-[25%] left-[2%] text-5xl hidden sm:block">🌳</div>
-      <div className="absolute bottom-[18%] left-[8%] text-4xl">🌲</div>
-      <div className="absolute bottom-[28%] right-[2%] text-5xl hidden sm:block">🌳</div>
-      <div className="absolute bottom-[14%] right-[8%] text-xl">🌷</div>
+      {/* Bird */}
+      <div className="absolute top-[17%] left-[4%] flex flex-col items-center justify-center">
+        <FrameAnimation
+          basePath="/assets/animations/bird/idle"
+          alt="Bird"
+          className="md:w-16 md:h-16 lg:w-20 lg:h-20 filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]"
+        />
+      </div>
+    
 
       {/* 👾 SPRITES & GAMEPLAY OBJECTS (matched to reference layout) */}
-      {/* Left side: blob + pig */}
-      <div className="absolute bottom-[38%] left-[16%] text-4xl animate-pulse">🫧</div>
-      <div className="absolute bottom-[34%] left-[22%] text-3xl animate-bounce duration-[1500ms]">🐷</div>
 
       {/* Flanking the hero: orange monster (left) + green monster (right) */}
-      <div className="absolute bottom-[32%] left-[28%] text-4xl animate-bounce duration-[1000ms]">👹</div>
-      <div className="absolute bottom-[32%] left-[38%] text-4xl animate-bounce duration-[1100ms]">👾</div>
+      <div className="absolute bottom-[28%] left-[26%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+        <FrameAnimation basePath="/assets/animations/monster1/idle" alt="Monster" className="w-full h-full" />
+        <div className="absolute left-1/2 bottom-[3px] w-3/5 h-2 bg-black/40 rounded-full blur-[2px]" style={{ transform: 'translateX(-50%)' }} />
+      </div>
+      <div className="absolute bottom-[32%] left-[38%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+        <FrameAnimation basePath="/assets/animations/monster2/idle" alt="Monster" className="w-full h-full" />
+        <div className="absolute left-1/2 bottom-[3px] w-3/5 h-2 bg-black/40 rounded-full blur-[2px]" style={{ transform: 'translateX(-50%)' }} />
+      </div>
 
       {/* Right side: spike ball obstacle + mushrooms */}
-      <div className="absolute bottom-[30%] right-[22%] text-4xl">🦔</div>
-      <div className="absolute bottom-[42%] right-[12%] text-4xl">🍄</div>
-      <div className="absolute bottom-[22%] right-[6%] text-3xl">🍄</div>
+      <div className="absolute bottom-[30%] right-[35%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+        <div className="relative w-full h-full animate-bounce [animation-duration:2000ms]">
+          <img src="/assets/spike-ball.png" alt="Spike ball" className="w-full h-full" />
+        </div>
+        <BounceShadow duration="2000ms" className="bottom-[-6px] w-3/5 h-2" />
+      </div>
+      <div className="absolute bottom-[40%] right-[15%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+        <div className="relative w-full h-full animate-bounce [animation-duration:800ms]">
+          <img src="/assets/mushroom.png" alt="Mushroom" className="w-full h-full" />
+        </div>
+        <BounceShadow duration="800ms" className="bottom-[-6px] w-3/5 h-2" />
+      </div>
+      <div className="absolute bottom-[15%] right-[6%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+        <div className="relative w-full h-full animate-bounce [animation-duration:1000ms]">
+          <img src="/assets/mushroom.png" alt="Mushroom" className="w-full h-full" />
+        </div>
+        <BounceShadow duration="1000ms" className="bottom-[-6px] w-3/5 h-2" />
+      </div>
 
       {/* Collectible Coins & Star, arcing over the hero */}
-      <div className="absolute bottom-[46%] left-[30%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1100ms]">🪙</div>
-      <div className="absolute bottom-[52%] left-[36%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1300ms]">🪙</div>
-      <div className="absolute bottom-[56%] left-[42%] text-4xl text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.8)] animate-pulse">⭐</div>
-      <div className="absolute bottom-[52%] right-[30%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1000ms]">🪙</div>
-      <div className="absolute bottom-[46%] right-[24%] text-3xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce duration-[1200ms]">🪙</div>
+      <div className="absolute md:bottom-[46%] lg:bottom-[42%] left-[30%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1100ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
+      <div className="absolute md:bottom-[48%] lg:bottom-[44%] left-[36%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1300ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
+      <div className="absolute md:bottom-[50%] lg:bottom-[46%] left-[44%] text-5xl text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.8)] animate-bounce [animation-duration:1700ms]">⭐</div>
+      <div className="absolute md:bottom-[48%] lg:bottom-[44%] right-[30%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1000ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
+      <div className="absolute md:bottom-[44%] lg:bottom-[40%] right-[24%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1200ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
 
       {/* 🏃 HERO CHARACTER (Center Stage) */}
-      <div className="absolute bottom-[40%] left-1/2 -translate-x-1/2 flex flex-col items-center animate-bounce duration-[600ms]">
-        <div className="text-6xl filter drop-shadow-[0_4px_0_rgba(0,0,0,0.3)]">🏃‍♂️</div>
+      <div className="absolute bottom-[30%] left-1/2 -translate-x-1/2 md:w-25 md:h-25 lg:w-35 lg:h-35">
+        <FrameAnimation
+          basePath="/assets/animations/jumpy/idle"
+          alt="Hero"
+          className="w-full h-full filter drop-shadow-[0_4px_0_rgba(0,0,0,0.3)]"
+        />
+        <div className="absolute left-1/2 bottom-[4px] w-3/7 h-3 bg-black/40 rounded-full blur-[2px]" style={{ transform: 'translateX(-50%)' }} />
       </div>
 
 
       {/* 👑 MAIN MENU UI LAYER */}
-      <div className="flex flex-col items-center justify-between h-full w-full z-10 pt-6 pb-2">
+      <div className="flex flex-col items-center justify-between h-full w-full z-10">
         
         {/* Title & Description Sub-container */}
         <div className="w-full flex flex-col items-center space-y-4">
-          {/* Game Title */}
-          <h1 className="text-6xl sm:text-7xl md:text-8xl font-black uppercase tracking-wider filter drop-shadow-[0_6px_0px_#1e3a8a] select-none text-center">
-            <span className="text-transparent bg-clip-text bg-gradient-to-b from-blue-300 via-cyan-400 to-indigo-600">
-              JUMPY
-            </span>
-            <span className="text-transparent bg-clip-text bg-gradient-to-b from-yellow-300 via-orange-400 to-red-500 ml-3">
-              RUN!
-            </span>
+          {/* Game Title (true arc via SVG textPath, 2x size) */}
+          <h1 className="w-full max-w-4xl select-none text-center mb-0" aria-label="Jumpy Run!">
+            <svg
+              viewBox="0 50 1000 240"
+              className="w-full sm:h-25 lg:h-50"
+              style={{ fontFamily: 'var(--font-fredoka)' }}
+              aria-hidden="true"
+            >
+              <defs>
+                <linearGradient id="yellowGrad" x1="0" y1="120" x2="0" y2="290" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#fffb00" />
+                  <stop offset="100%" stopColor="#ffb700" />
+                </linearGradient>
+                <linearGradient id="blueGrad" x1="0" y1="120" x2="0" y2="290" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#00e5ff" />
+                  <stop offset="100%" stopColor="#0033ff" />
+                </linearGradient>
+                <linearGradient id="orangeGrad" x1="0" y1="120" x2="0" y2="290" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#ff9100" />
+                  <stop offset="100%" stopColor="#ff2d00" />
+                </linearGradient>
+                {/* The curve the text rides along - tweak the control point (500,120) to change arc height */}
+                <path id="titleArc" d="M 40,260 Q 500,120 960,260" fill="none" />
+              </defs>
+              <text
+                fontSize="120"
+                fontWeight="900"
+                textAnchor="middle"
+                fill="yellow"
+                stroke="yellow"
+                strokeWidth="30"
+                strokeLinejoin="round"
+                style={{
+                  textTransform: 'uppercase',
+                  filter:
+                    'drop-shadow(0 0 14px rgba(255,255,255,0.55)) drop-shadow(0 0 26px rgba(255,255,255,0.35))',
+                }}
+              >
+                <textPath href="#titleArc" startOffset="50%" xlinkHref="#titleArc">
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px yellow)' }}>J</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px yellow)' }}>U</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px yellow)' }}>M</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px yellow)' }}>P</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px yellow)' }}>Y</tspan>
+                  <tspan dx="30"> </tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px yellow)' }}>R</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px yellow)' }}>U</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px yellow)' }}>N</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px yellow)' }}>!</tspan>
+                </textPath>
+              </text>
+              <text
+                fontSize="120"
+                fontWeight="900"
+                textAnchor="middle"
+                fill="black"
+                stroke="black"
+                strokeWidth="20"
+                strokeLinejoin="round"
+                style={{
+                  textTransform: 'uppercase',
+                  filter:
+                    'drop-shadow(0 0 14px rgba(255,255,255,0.55)) drop-shadow(0 0 26px rgba(255,255,255,0.35))',
+                }}
+              >
+                <textPath href="#titleArc" startOffset="50%" xlinkHref="#titleArc">
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px #000)' }}>J</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px #000)' }}>U</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px #000)' }}>M</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px #000)' }}>P</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px #000)' }}>Y</tspan>
+                  <tspan dx="30"> </tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px #000)' }}>R</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px #000)' }}>U</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px #000)' }}>N</tspan>
+                  <tspan style={{ filter: 'drop-shadow(0 6px 0px #000)' }}>!</tspan>
+                </textPath>
+              </text>
+
+              <text
+                fontSize="120"
+                fontWeight="900"
+                textAnchor="middle"
+                style={{
+                  textTransform: 'uppercase',
+                }}
+              >
+                <textPath href="#titleArc" startOffset="50%" xlinkHref="#titleArc">
+                  <tspan fill="url(#yellowGrad)" style={{ filter: 'drop-shadow(0 6px 0px #7a4a00)' }}>J</tspan>
+                  <tspan fill="url(#blueGrad)" style={{ filter: 'drop-shadow(0 6px 0px #1c428a)' }}>U</tspan>
+                  <tspan fill="url(#yellowGrad)" style={{ filter: 'drop-shadow(0 6px 0px #7a4a00)' }}>M</tspan>
+                  <tspan fill="url(#yellowGrad)" style={{ filter: 'drop-shadow(0 6px 0px #7a4a00)' }}>P</tspan>
+                  <tspan fill="url(#blueGrad)" style={{ filter: 'drop-shadow(0 6px 0px #1c428a)' }}>Y</tspan>
+                  <tspan dx="30"> </tspan>
+                  <tspan fill="url(#orangeGrad)" style={{ filter: 'drop-shadow(0 6px 0px #7a1200)' }}>R</tspan>
+                  <tspan fill="url(#orangeGrad)" style={{ filter: 'drop-shadow(0 6px 0px #7a1200)' }}>U</tspan>
+                  <tspan fill="url(#orangeGrad)" style={{ filter: 'drop-shadow(0 6px 0px #7a1200)' }}>N</tspan>
+                  <tspan fill="url(#blueGrad)" style={{ filter: 'drop-shadow(0 6px 0px #1c428a)' }}>!</tspan>
+                </textPath>
+              </text>
+            </svg>
           </h1>
 
           {/* Description Text Box */}
-          <div className="bg-black/60 border-2 border-white/20 rounded-xl px-6 py-3 max-w-2xl backdrop-blur-xs shadow-lg text-center">
+          <div className="bg-black/60 rounded-xl px-6 py-2 max-w-2xl backdrop-blur-xs shadow-lg text-center">
             <p className="text-yellow-300 text-sm sm:text-base font-extrabold tracking-wide uppercase">
               A SUPER FUN jumping adventure!
             </p>
@@ -101,27 +247,26 @@ export default function MainMenu({ onStartGame }) {
           </div>
         </div>
 
-        {/* 🕹️ START TO PLAY ACTION BUTTON */}
-        <Button onClick={onStartGame} />
-
-
-        {/* 🗺️ FOOTER CONTROLS HUD */}
-        <div className="w-full max-w-xl bg-black/40 border border-white/10 rounded-xl py-2 px-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-white font-bold text-xs sm:text-sm shadow-inner backdrop-blur-xs">
-          <div className="flex items-center gap-2">
-            <kbd className="bg-slate-200 text-slate-800 px-2 py-0.5 rounded-md border-b-4 border-slate-400 text-[10px] font-mono font-black uppercase">
-              Spacebar
-            </kbd>
-            <span className="text-slate-200">to JUMP,</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="bg-cyan-500 text-white px-2 py-0.5 rounded-md border-b-4 border-cyan-700 text-[10px] font-black uppercase tracking-tight">
-              TAP SCREEN
-            </span>
-            <span className="text-slate-200">to JUMP</span>
-          </div>
+        <div className="flex flex-col items-center justify-end md:gap-2 lg:gap-5 h-full w-full">
+          {/* 🕹️ START TO PLAY ACTION BUTTON */}
+          <Button onClick={onStartGame} />
+          {/* 🗺️ FOOTER CONTROLS HUD */}
+          <div className="w-full max-w-xl bg-black/40 border border-white/10 rounded-xl py-2 px-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-white font-bold text-xs sm:text-sm shadow-inner backdrop-blur-xs">
+            <div className="flex items-center gap-2">
+              <kbd className="border-2 bg-slate-200 text-slate-800 px-2 py-0.5 rounded-md border-b-4 border-slate-950 text-[10px] font-mono font-black uppercase">
+                Spacebar
+              </kbd>
+              <span className="text-slate-200">to JUMP,</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="border-2 bg-cyan-500 text-white px-2 py-0.5 rounded-md border-b-4 border-slate-950 text-[10px] font-black uppercase tracking-tight">
+                TAP SCREEN
+              </span>
+              <span className="text-slate-200">to JUMP</span>
+            </div>
           
-          <div className="text-base animate-pulse hidden sm:inline-block">👆</div>
+            <div className="text-base animate-pulse hidden sm:inline-block">👆</div>
+          </div>
         </div>
 
       </div>
