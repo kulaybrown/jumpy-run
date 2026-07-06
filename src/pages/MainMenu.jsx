@@ -65,7 +65,7 @@ export default function MainMenu({ onStartGame }) {
       {/* ☀️ BACKGROUND ENVIRONMENT ELEMENTS */}
       {/* Bright Pixel Sun */}
       <div className="absolute top-[8%] left-[15%] flex flex-col items-center justify-center animate-pulse">
-        <img src="/assets/sun.png" alt="Sun" className="md:w-20 md:h-20 lg:w-25 lg:h-25 filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]" />
+        <img src="/assets/sun.png" alt="Sun" className="w-20 h-20 lg:w-25 lg:h-25 filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]" />
       </div>
 
       {/* Bird */}
@@ -73,7 +73,7 @@ export default function MainMenu({ onStartGame }) {
         <FrameAnimation
           basePath="/assets/animations/bird/idle"
           alt="Bird"
-          className="md:w-16 md:h-16 lg:w-20 lg:h-20 filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]"
+          className="w-16 h-16 lg:w-20 lg:h-20 filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]"
         />
       </div>
     
@@ -81,29 +81,29 @@ export default function MainMenu({ onStartGame }) {
       {/* 👾 SPRITES & GAMEPLAY OBJECTS (matched to reference layout) */}
 
       {/* Flanking the hero: orange monster (left) + green monster (right) */}
-      <div className="absolute bottom-[28%] left-[26%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+      <div className="absolute bottom-[28%] left-[26%] w-15 h-15 lg:w-20 lg:h-20">
         <FrameAnimation basePath="/assets/animations/monster1/idle" alt="Monster" className="w-full h-full" />
         <div className="absolute left-1/2 bottom-[3px] w-3/5 h-2 bg-black/40 rounded-full blur-[2px]" style={{ transform: 'translateX(-50%)' }} />
       </div>
-      <div className="absolute bottom-[32%] left-[38%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+      <div className="absolute bottom-[32%] left-[38%] w-15 h-15 lg:w-20 lg:h-20">
         <FrameAnimation basePath="/assets/animations/monster2/idle" alt="Monster" className="w-full h-full" />
         <div className="absolute left-1/2 bottom-[3px] w-3/5 h-2 bg-black/40 rounded-full blur-[2px]" style={{ transform: 'translateX(-50%)' }} />
       </div>
 
       {/* Right side: spike ball obstacle + mushrooms */}
-      <div className="absolute bottom-[30%] right-[35%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+      <div className="absolute bottom-[30%] right-[35%] w-15 h-15 lg:w-20 lg:h-20">
         <div className="relative w-full h-full animate-bounce [animation-duration:2000ms]">
           <img src="/assets/spike-ball.png" alt="Spike ball" className="w-full h-full" />
         </div>
         <BounceShadow duration="2000ms" className="bottom-[-6px] w-3/5 h-2" />
       </div>
-      <div className="absolute bottom-[40%] right-[15%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+      <div className="absolute bottom-[40%] right-[15%] w-15 h-15 lg:w-20 lg:h-20">
         <div className="relative w-full h-full animate-bounce [animation-duration:800ms]">
           <img src="/assets/mushroom.png" alt="Mushroom" className="w-full h-full" />
         </div>
         <BounceShadow duration="800ms" className="bottom-[-6px] w-3/5 h-2" />
       </div>
-      <div className="absolute bottom-[15%] right-[6%] md:w-15 md:h-15 lg:w-20 lg:h-20">
+      <div className="absolute bottom-[15%] right-[6%] w-15 h-15 lg:w-20 lg:h-20">
         <div className="relative w-full h-full animate-bounce [animation-duration:1000ms]">
           <img src="/assets/mushroom.png" alt="Mushroom" className="w-full h-full" />
         </div>
@@ -111,14 +111,14 @@ export default function MainMenu({ onStartGame }) {
       </div>
 
       {/* Collectible Coins & Star, arcing over the hero */}
-      <div className="absolute md:bottom-[46%] lg:bottom-[42%] left-[30%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1100ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
-      <div className="absolute md:bottom-[48%] lg:bottom-[44%] left-[36%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1300ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
-      <div className="absolute md:bottom-[50%] lg:bottom-[46%] left-[44%] text-5xl text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.8)] animate-bounce [animation-duration:1700ms]">⭐</div>
-      <div className="absolute md:bottom-[48%] lg:bottom-[44%] right-[30%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1000ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
-      <div className="absolute md:bottom-[44%] lg:bottom-[40%] right-[24%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1200ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
+      <div className="absolute bottom-[46%] lg:bottom-[42%] left-[30%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1100ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
+      <div className="absolute bottom-[48%] lg:bottom-[44%] left-[36%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1300ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
+      <div className="absolute bottom-[50%] lg:bottom-[46%] left-[44%] text-5xl text-yellow-300 drop-shadow-[0_0_10px_rgba(250,204,21,0.8)] animate-bounce [animation-duration:1700ms]">⭐</div>
+      <div className="absolute bottom-[48%] lg:bottom-[44%] right-[30%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1000ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
+      <div className="absolute bottom-[44%] lg:bottom-[40%] right-[24%] text-5xl text-yellow-400 drop-shadow-[0_2px_0_rgba(0,0,0,0.4)] animate-bounce [animation-duration:1200ms]"><div className="animate-spin transform-3d rotate-y-180">🪙</div></div>
 
       {/* 🏃 HERO CHARACTER (Center Stage) */}
-      <div className="absolute bottom-[30%] left-1/2 -translate-x-1/2 md:w-25 md:h-25 lg:w-35 lg:h-35">
+      <div className="absolute bottom-[30%] left-1/2 -translate-x-1/2 w-25 h-25 lg:w-35 lg:h-35">
         <FrameAnimation
           basePath="/assets/animations/jumpy/idle"
           alt="Hero"
@@ -249,7 +249,7 @@ export default function MainMenu({ onStartGame }) {
 
         <div className="flex flex-col items-center justify-end md:gap-2 lg:gap-5 h-full w-full">
           {/* 🕹️ START TO PLAY ACTION BUTTON */}
-          <Button onClick={onStartGame} />
+          <Button onClick={onStartGame} text="START TO PLAY" variant="primary" />
           {/* 🗺️ FOOTER CONTROLS HUD */}
           <div className="w-full max-w-xl bg-black/40 border border-white/10 rounded-xl py-2 px-4 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 text-white font-bold text-xs sm:text-sm shadow-inner backdrop-blur-xs">
             <div className="flex items-center gap-2">

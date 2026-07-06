@@ -1032,238 +1032,237 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen, assetsLoaded, showCharSelect, selectedChar]); 
 
   return (
-    <div className="absolute inset-0 w-full h-full bg-slate-900 flex items-center justify-center select-none overflow-hidden p-2 sm:p-6">
-      <div className="relative w-full max-w-[1400px] aspect-[2/1] bg-slate-950 rounded-2xl border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
+    <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] bg-slate-950 border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
+      
+      {assetsLoaded && showCharSelect && (
+        <div className="absolute inset-0 z-50 w-full h-full">
+          <CharacterSelect 
+            onSelectCharacter={(char) => setSelectedChar(char)}
+            onBack={onMainMenu}
+            onStartGame={() => {
+              preloadGameplaySprites(selectedChar.id); 
+              handleRestartRun();
+              setShowCharSelect(false); 
+            }}
+          />
+        </div>
+      )}
+
+      {!assetsLoaded && (
+        <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center z-40 gap-3">
+          <div className="w-10 h-10 border-4 border-t-cyan-400 border-white/10 rounded-full animate-spin" />
+          <p className="font-mono text-xs tracking-widest text-slate-400 uppercase animate-pulse">Preloading Level Core Asset Bundles...</p>
+        </div>
+      )}
+
+      {/* Game HUD */}
+      <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none px-4 py-2 z-10 text-[10px] sm:text-xs md:text-sm font-bold tracking-wide [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
+        <div className="flex items-center gap-3">
+          <div className="text-cyan-400">🚩 DISTANCE: <span className="text-white">{distance}m</span></div>
+          {shieldCount > 0 && (
+            <div className="flex items-center gap-1 bg-cyan-600 text-white border border-cyan-400/40 px-2 py-0.5 rounded-md text-[9px] sm:text-[11px] font-black shadow-md">🛡️ {shieldCount}/5</div>
+          )}
+          {reviveCount > 0 && (
+            <div className="flex items-center gap-1 bg-rose-600 text-white border border-rose-400/40 px-2 py-0.5 rounded-md text-[9px] sm:text-[11px] font-black shadow-md">❤️ {reviveCount}/2</div>
+          )}
+        </div>
         
-        {assetsLoaded && showCharSelect && (
-          <div className="absolute inset-0 z-50 w-full h-full">
-            <CharacterSelect 
-              onSelectCharacter={(char) => setSelectedChar(char)}
-              onBack={onMainMenu}
-              onStartGame={() => {
-                preloadGameplaySprites(selectedChar.id); 
-                handleRestartRun();
-                setShowCharSelect(false); 
-              }}
-            />
-          </div>
-        )}
-
-        {!assetsLoaded && (
-          <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center z-40 gap-3">
-            <div className="w-10 h-10 border-4 border-t-cyan-400 border-white/10 rounded-full animate-spin" />
-            <p className="font-mono text-xs tracking-widest text-slate-400 uppercase animate-pulse">Preloading Level Core Asset Bundles...</p>
-          </div>
-        )}
-
-        {/* Game HUD */}
-        <div className="absolute top-4 left-4 right-4 flex justify-between items-center pointer-events-none px-4 py-2 z-10 text-[10px] sm:text-xs md:text-sm font-bold tracking-wide [text-shadow:0_1px_3px_rgba(0,0,0,0.8)]">
-          <div className="flex items-center gap-3">
-            <div className="text-cyan-400">🚩 DISTANCE: <span className="text-white">{distance}m</span></div>
-            {shieldCount > 0 && (
-              <div className="flex items-center gap-1 bg-cyan-600 text-white border border-cyan-400/40 px-2 py-0.5 rounded-md text-[9px] sm:text-[11px] font-black shadow-md">🛡️ {shieldCount}/5</div>
-            )}
-            {reviveCount > 0 && (
-              <div className="flex items-center gap-1 bg-rose-600 text-white border border-rose-400/40 px-2 py-0.5 rounded-md text-[9px] sm:text-[11px] font-black shadow-md">❤️ {reviveCount}/2</div>
-            )}
-          </div>
-          
-          <div className="flex flex-wrap gap-1 max-w-[40%] justify-center pointer-events-none">
-            {activeSkills.map((sk) => (
-              <div key={sk.id} className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center bg-cyan-600 text-white rounded-full border border-cyan-400/40 animate-pulse text-sm sm:text-base shadow-md">
-                <span>{sk.icon}</span>
-              </div>
-            ))}
-          </div>
-
-          <div className="flex gap-4 sm:gap-6">
-            <div className="text-yellow-400">SCORE: <span className="text-white">{score}</span></div>
-            <div className="text-amber-400">🪙 COINS: <span className="text-white">{coins}</span></div>
-          </div>
+        <div className="flex flex-wrap gap-1 max-w-[40%] justify-center pointer-events-none">
+          {activeSkills.map((sk) => (
+            <div key={sk.id} className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center bg-cyan-600 text-white rounded-full border border-cyan-400/40 animate-pulse text-sm sm:text-base shadow-md">
+              <span>{sk.icon}</span>
+            </div>
+          ))}
         </div>
 
-        {/* FLUID CANVAS ELEMENT */}
-        <canvas
-          ref={canvasRef}
-          onClick={() => canvasClickHandler.current && canvasClickHandler.current()}
-          className="w-full h-full object-contain bg-slate-950 touch-none cursor-pointer"
-        />
-
-        {/* 🏅 LEADERBOARD OVERLAY */}
-        {highScores.length > 0 && !isGameOverScreen && (
-          <div className="absolute right-4 top-16 bg-slate-950/80 border border-white/10 backdrop-blur-md text-white p-2.5 rounded-xl pointer-events-none text-[10px] md:text-xs z-10 w-28 sm:w-32 md:w-36 shadow-xl">
-            <div className="text-amber-400 font-extrabold mb-1 tracking-wider border-b border-white/10 pb-0.5 text-right">🏆 TOP RUNS</div>
-            <ol className="list-decimal list-inside space-y-0.5 font-mono opacity-90 text-right">
-              {highScores.map((hs, i) => (
-                <li key={i} className={i === 0 ? "text-yellow-300 font-bold" : ""}>
-                  <span className="text-slate-400 mr-1">#{i + 1}</span>
-                  {hs}
-                </li>
-              ))}
-            </ol>
-          </div>
-        )}
-
-        {/* 🎯 SKILL CARD CHOOSE MODAL OVERLAY */}
-        {showCards && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 p-4">
-            <div className="text-center mb-4 md:mb-6">
-              <h3 className="text-base sm:text-xl md:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 uppercase">
-                🚀 Milestone Reached!
-              </h3>
-              <p className="text-[10px] sm:text-xs md:text-sm text-slate-400 mt-0.5">Select a skill upgrade to bolster your current run</p>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-2.5 md:gap-4 w-full max-w-xl md:max-w-2xl px-2">
-              {randomCards.map((skill) => (
-                <button
-                  key={skill.id}
-                  onClick={() => handleSelectSkill(skill)}
-                  className="group relative flex flex-col items-center text-center bg-slate-900/90 border border-white/10 rounded-xl p-2 sm:p-3 md:p-4 hover:border-cyan-500/50 hover:bg-slate-800/80 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-xl overflow-hidden"
-                >
-                  <div className="absolute -inset-px bg-gradient-to-b from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
-                  <div className="text-2xl sm:text-3xl md:text-4xl mb-1.5 p-1.5 sm:p-2 bg-slate-950 rounded-lg group-hover:scale-110 transition-transform shadow-inner">
-                    {skill.icon}
-                  </div>
-                  <h4 className="text-[10px] sm:text-xs md:text-sm font-extrabold text-white group-hover:text-cyan-400 transition-colors line-clamp-1 mb-0.5">
-                    {skill.name}
-                  </h4>
-                  <p className="text-[9px] sm:text-[10px] md:text-xs leading-tight text-slate-400 group-hover:text-slate-300 transition-colors line-clamp-2 h-6 sm:h-7 md:h-8 font-medium">
-                    {skill.description}
-                  </p>
-                  {skill.duration && (
-                    <span className="mt-2 text-[8px] sm:text-[9px] font-mono tracking-wider bg-slate-950 text-cyan-400 px-1.5 py-0.5 rounded-md uppercase opacity-75">
-                      ⏱️ {(skill.duration / 1000)}s
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 💀 PLAYFUL RUN COMPLETED PANEL OVERLAY */}
-        {isGameOverScreen && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-purple-950/85 backdrop-blur-md z-40 p-4 animate-fade-in">
-            <div className="w-full max-w-md md:max-w-xl bg-gradient-to-b from-indigo-600 via-purple-700 to-indigo-900 border-4 border-yellow-400 rounded-3xl p-5 sm:p-6 md:p-8 shadow-[0_0_40px_rgba(250,204,21,0.5)] text-center relative overflow-hidden">
-              
-              <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-pink-400 via-yellow-300 via-cyan-400 via-green-400 to-pink-400 bg-[length:200%_auto] animate-pulse" />
-              
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-yellow-300 uppercase drop-shadow-[0_4px_0px_rgba(0,0,0,0.6)] animate-bounce mb-1">
-                🎉 AWESOME RUN! 🎉
-              </h2>
-              <p className="text-cyan-200 text-xs sm:text-sm md:text-base font-bold tracking-wider uppercase mb-5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
-                Check out your spectacular score report!
-              </p>
-
-              <div className="grid grid-cols-3 gap-3 mb-5 md:mb-6">
-                <div className="bg-pink-500/30 border-2 border-pink-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#be185d]">
-                  <p className="text-[10px] sm:text-xs font-black text-pink-200 uppercase tracking-wide mb-1">⭐ Stars</p>
-                  <p className="text-xl sm:text-2xl md:text-3xl font-black text-white font-sans drop-shadow-[0_2px_0px_rgba(0,0,0,0.4)]">{score}</p>
-                </div>
-                <div className="bg-cyan-500/30 border-2 border-cyan-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#0369a1]">
-                  <p className="text-[10px] sm:text-xs font-black text-cyan-100 uppercase tracking-wide mb-1">🏃‍♂️ Steps</p>
-                  <p className="text-xl sm:text-2xl md:text-3xl font-black text-white font-sans drop-shadow-[0_2px_0px_rgba(0,0,0,0.4)]">{distance}m</p>
-                </div>
-                <div className="bg-amber-500/30 border-2 border-amber-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#b45309]">
-                  <p className="text-[10px] sm:text-xs font-black text-amber-200 uppercase tracking-wide mb-1">🪙 Coins</p>
-                  <p className="text-xl sm:text-2xl md:text-3xl font-black text-yellow-300 font-sans drop-shadow-[0_2px_0px_rgba(0,0,0,0.4)]">{coins}</p>
-                </div>
-              </div>
-
-              {/* 🏅 LEADERBOARD PLACEMENT BADGE */}
-              {highScores.length > 0 && (
-                <div className="bg-indigo-950/60 rounded-2xl p-3 md:p-4 border-2 border-purple-400/50 mb-5 md:mb-6 shadow-inner">
-                  <div className="font-sans text-xs sm:text-sm tracking-wide">
-                    {(() => {
-                      const achievedRank = highScores.indexOf(score) + 1;
-                      if (achievedRank > 0) {
-                        return (
-                          <div className="flex flex-col sm:flex-row justify-between items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-300 border-2 border-yellow-500 text-slate-900 font-black shadow-[0_4px_0px_rgba(0,0,0,0.25)] animate-pulse">
-                            <span className="text-[11px] sm:text-xs tracking-widest uppercase">🏆 NEW LEADERBOARD ENTRY!</span>
-                            <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs md:text-sm font-black tracking-tighter shadow-inner">
-                              RANK #{achievedRank} ACHIEVED
-                            </span>
-                          </div>
-                        );
-                      } else {
-                        return (
-                          <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-indigo-900/40 text-purple-200 font-extrabold border border-purple-500/20">
-                            <span className="text-[11px] uppercase tracking-wider">✨ HIGH SCORE PLACEMENT:</span>
-                            <span className="text-purple-300 tracking-tight text-[11px] uppercase bg-purple-950/80 px-2.5 py-0.5 rounded-md">SUPERSTAR UNRANKED</span>
-                          </div>
-                        );
-                      }
-                    })()}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Controller Buttons */}
-              <div className="flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={() => {
-                    preloadGameplaySprites(selectedChar.id);
-                    handleRestartRun();
-                  }}
-                  className="flex-1 bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-300 hover:to-emerald-400 text-white font-black text-sm md:text-base px-6 py-3.5 rounded-2xl shadow-[0_5px_0px_#047857] hover:shadow-[0_4px_0px_#047857] active:shadow-none border-2 border-green-300/30 transition-all transform hover:-translate-y-0.5 active:translate-y-1 tracking-wider uppercase"
-                >
-                  🚀 DASH AGAIN!
-                </button>
-                <button
-                  onClick={() => {
-                    setIsGameOverScreen(false);
-                    setShowCharSelect(true); 
-                  }}
-                  className="px-6 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-bold text-sm rounded-xl transition-all uppercase tracking-wide"
-                >
-                  🦸 Select Runner
-                </button>
-                <button
-                  onClick={() => onMainMenu()}
-                  className="px-6 py-3.5 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-slate-200 font-extrabold text-sm rounded-2xl shadow-[0_5px_0px_#1e293b] hover:shadow-[0_4px_0px_#1e293b] active:shadow-none border-2 border-slate-600/30 transition-all transform hover:-translate-y-0.5 active:translate-y-1 tracking-wide"
-                >
-                  Exit to Hub 🏡
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* REWARDED VIDEO ADS INTERCEPTION OVERLAY */}
-        {showAdPrompt && !adOverlay && !hasUsedAdRevive && dailyAdsUsed < MAX_DAILY_ADS && !isGameOverScreen && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-xs z-50 p-4">
-            <div className="text-center p-5 max-w-sm bg-slate-900 border border-white/10 rounded-2xl shadow-2xl">
-              <h3 className="text-base font-bold text-white mb-1">Continue Run?</h3>
-              <p className="text-xs text-slate-400 mb-4">Watch a short ad to revive and keep your score.</p>
-              <div className="flex flex-col gap-2.5">
-                <button onClick={watchRewardedAd} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-lg">
-                  🎥 Watch Ad to Revive
-                </button>
-                <button onClick={handleSkipAdRevive} className="text-slate-500 hover:text-slate-300 text-[11px] font-semibold py-1">
-                  Skip & End Run
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* FAKE AD OVERLAY */}
-        {adOverlay === 'playing' && (
-          <div className="absolute inset-0 bg-black z-[60] flex flex-col items-center justify-center p-4">
-            <div className="absolute top-4 right-4 bg-white/10 text-white text-[10px] md:text-xs font-mono px-2.5 py-1 rounded-full">
-              {adCountdown > 0 ? `Reward in ${adCountdown}s` : 'Reward Granted!'}
-            </div>
-            <div className="text-slate-500 text-xs md:text-sm mb-3 border border-slate-800 px-3 py-1.5 rounded-lg bg-slate-900">
-              [ Sponsor Advertisement Simulation ]
-            </div>
-            <div className="w-full max-w-xs h-36 md:h-44 bg-slate-800 animate-pulse rounded-xl flex items-center justify-center">
-              <span className="text-slate-600 font-bold text-xs md:text-sm tracking-widest uppercase">Video Ad</span>
-            </div>
-          </div>
-        )}
-        
+        <div className="flex gap-4 sm:gap-6">
+          <div className="text-yellow-400">SCORE: <span className="text-white">{score}</span></div>
+          <div className="text-amber-400">🪙 COINS: <span className="text-white">{coins}</span></div>
+        </div>
       </div>
+
+      {/* FLUID CANVAS ELEMENT */}
+      <canvas
+        ref={canvasRef}
+        onClick={() => canvasClickHandler.current && canvasClickHandler.current()}
+        className="w-full object-contain bg-slate-950 touch-none cursor-pointer"
+      />
+
+      {/* 🏅 LEADERBOARD OVERLAY */}
+      {highScores.length > 0 && !isGameOverScreen && (
+        <div className="absolute right-4 top-16 bg-slate-950/80 border border-white/10 backdrop-blur-md text-white p-2.5 rounded-xl pointer-events-none text-[10px] md:text-xs z-10 w-28 sm:w-32 md:w-36 shadow-xl">
+          <div className="text-amber-400 font-extrabold mb-1 tracking-wider border-b border-white/10 pb-0.5 text-right">🏆 TOP RUNS</div>
+          <ol className="list-decimal list-inside space-y-0.5 font-mono opacity-90 text-right">
+            {highScores.map((hs, i) => (
+              <li key={i} className={i === 0 ? "text-yellow-300 font-bold" : ""}>
+                <span className="text-slate-400 mr-1">#{i + 1}</span>
+                {hs}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* 🎯 SKILL CARD CHOOSE MODAL OVERLAY */}
+      {showCards && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 p-4">
+          <div className="text-center mb-4 md:mb-6">
+            <h3 className="text-base sm:text-xl md:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 uppercase">
+              🚀 Milestone Reached!
+            </h3>
+            <p className="text-[10px] sm:text-xs md:text-sm text-slate-400 mt-0.5">Select a skill upgrade to bolster your current run</p>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-2.5 md:gap-4 w-full max-w-xl md:max-w-2xl px-2">
+            {randomCards.map((skill) => (
+              <button
+                key={skill.id}
+                onClick={() => handleSelectSkill(skill)}
+                className="group relative flex flex-col items-center text-center bg-slate-900/90 border border-white/10 rounded-xl p-2 sm:p-3 md:p-4 hover:border-cyan-500/50 hover:bg-slate-800/80 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-xl overflow-hidden"
+              >
+                <div className="absolute -inset-px bg-gradient-to-b from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
+                <div className="text-2xl sm:text-3xl md:text-4xl mb-1.5 p-1.5 sm:p-2 bg-slate-950 rounded-lg group-hover:scale-110 transition-transform shadow-inner">
+                  {skill.icon}
+                </div>
+                <h4 className="text-[10px] sm:text-xs md:text-sm font-extrabold text-white group-hover:text-cyan-400 transition-colors line-clamp-1 mb-0.5">
+                  {skill.name}
+                </h4>
+                <p className="text-[9px] sm:text-[10px] md:text-xs leading-tight text-slate-400 group-hover:text-slate-300 transition-colors line-clamp-2 h-6 sm:h-7 md:h-8 font-medium">
+                  {skill.description}
+                </p>
+                {skill.duration && (
+                  <span className="mt-2 text-[8px] sm:text-[9px] font-mono tracking-wider bg-slate-950 text-cyan-400 px-1.5 py-0.5 rounded-md uppercase opacity-75">
+                    ⏱️ {(skill.duration / 1000)}s
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 💀 PLAYFUL RUN COMPLETED PANEL OVERLAY */}
+      {isGameOverScreen && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-purple-950/85 backdrop-blur-md z-40 p-4 animate-fade-in">
+          <div className="w-full max-w-md md:max-w-xl bg-gradient-to-b from-indigo-600 via-purple-700 to-indigo-900 border-4 border-yellow-400 rounded-3xl p-5 sm:p-6 md:p-8 shadow-[0_0_40px_rgba(250,204,21,0.5)] text-center relative overflow-hidden">
+            
+            <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-pink-400 via-yellow-300 via-cyan-400 via-green-400 to-pink-400 bg-[length:200%_auto] animate-pulse" />
+            
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-yellow-300 uppercase drop-shadow-[0_4px_0px_rgba(0,0,0,0.6)] animate-bounce mb-1">
+              🎉 AWESOME RUN! 🎉
+            </h2>
+            <p className="text-cyan-200 text-xs sm:text-sm md:text-base font-bold tracking-wider uppercase mb-5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
+              Check out your spectacular score report!
+            </p>
+
+            <div className="grid grid-cols-3 gap-3 mb-5 md:mb-6">
+              <div className="bg-pink-500/30 border-2 border-pink-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#be185d]">
+                <p className="text-[10px] sm:text-xs font-black text-pink-200 uppercase tracking-wide mb-1">⭐ Stars</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-black text-white font-sans drop-shadow-[0_2px_0px_rgba(0,0,0,0.4)]">{score}</p>
+              </div>
+              <div className="bg-cyan-500/30 border-2 border-cyan-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#0369a1]">
+                <p className="text-[10px] sm:text-xs font-black text-cyan-100 uppercase tracking-wide mb-1">🏃‍♂️ Steps</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-black text-white font-sans drop-shadow-[0_2px_0px_rgba(0,0,0,0.4)]">{distance}m</p>
+              </div>
+              <div className="bg-amber-500/30 border-2 border-amber-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#b45309]">
+                <p className="text-[10px] sm:text-xs font-black text-amber-200 uppercase tracking-wide mb-1">🪙 Coins</p>
+                <p className="text-xl sm:text-2xl md:text-3xl font-black text-yellow-300 font-sans drop-shadow-[0_2px_0px_rgba(0,0,0,0.4)]">{coins}</p>
+              </div>
+            </div>
+
+            {/* 🏅 LEADERBOARD PLACEMENT BADGE */}
+            {highScores.length > 0 && (
+              <div className="bg-indigo-950/60 rounded-2xl p-3 md:p-4 border-2 border-purple-400/50 mb-5 md:mb-6 shadow-inner">
+                <div className="font-sans text-xs sm:text-sm tracking-wide">
+                  {(() => {
+                    const achievedRank = highScores.indexOf(score) + 1;
+                    if (achievedRank > 0) {
+                      return (
+                        <div className="flex flex-col sm:flex-row justify-between items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-300 border-2 border-yellow-500 text-slate-900 font-black shadow-[0_4px_0px_rgba(0,0,0,0.25)] animate-pulse">
+                          <span className="text-[11px] sm:text-xs tracking-widest uppercase">🏆 NEW LEADERBOARD ENTRY!</span>
+                          <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs md:text-sm font-black tracking-tighter shadow-inner">
+                            RANK #{achievedRank} ACHIEVED
+                          </span>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-indigo-900/40 text-purple-200 font-extrabold border border-purple-500/20">
+                          <span className="text-[11px] uppercase tracking-wider">✨ HIGH SCORE PLACEMENT:</span>
+                          <span className="text-purple-300 tracking-tight text-[11px] uppercase bg-purple-950/80 px-2.5 py-0.5 rounded-md">SUPERSTAR UNRANKED</span>
+                        </div>
+                      );
+                    }
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* Action Controller Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => {
+                  preloadGameplaySprites(selectedChar.id);
+                  handleRestartRun();
+                }}
+                className="flex-1 bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-300 hover:to-emerald-400 text-white font-black text-sm md:text-base px-6 py-3.5 rounded-2xl shadow-[0_5px_0px_#047857] hover:shadow-[0_4px_0px_#047857] active:shadow-none border-2 border-green-300/30 transition-all transform hover:-translate-y-0.5 active:translate-y-1 tracking-wider uppercase"
+              >
+                🚀 DASH AGAIN!
+              </button>
+              <button
+                onClick={() => {
+                  setIsGameOverScreen(false);
+                  setShowCharSelect(true); 
+                }}
+                className="px-6 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-bold text-sm rounded-xl transition-all uppercase tracking-wide"
+              >
+                🦸 Select Runner
+              </button>
+              <button
+                onClick={() => onMainMenu()}
+                className="px-6 py-3.5 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-slate-200 font-extrabold text-sm rounded-2xl shadow-[0_5px_0px_#1e293b] hover:shadow-[0_4px_0px_#1e293b] active:shadow-none border-2 border-slate-600/30 transition-all transform hover:-translate-y-0.5 active:translate-y-1 tracking-wide"
+              >
+                Exit to Hub 🏡
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* REWARDED VIDEO ADS INTERCEPTION OVERLAY */}
+      {showAdPrompt && !adOverlay && !hasUsedAdRevive && dailyAdsUsed < MAX_DAILY_ADS && !isGameOverScreen && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-xs z-50 p-4">
+          <div className="text-center p-5 max-w-sm bg-slate-900 border border-white/10 rounded-2xl shadow-2xl">
+            <h3 className="text-base font-bold text-white mb-1">Continue Run?</h3>
+            <p className="text-xs text-slate-400 mb-4">Watch a short ad to revive and keep your score.</p>
+            <div className="flex flex-col gap-2.5">
+              <button onClick={watchRewardedAd} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-lg">
+                🎥 Watch Ad to Revive
+              </button>
+              <button onClick={handleSkipAdRevive} className="text-slate-500 hover:text-slate-300 text-[11px] font-semibold py-1">
+                Skip & End Run
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* FAKE AD OVERLAY */}
+      {adOverlay === 'playing' && (
+        <div className="absolute inset-0 bg-black z-[60] flex flex-col items-center justify-center p-4">
+          <div className="absolute top-4 right-4 bg-white/10 text-white text-[10px] md:text-xs font-mono px-2.5 py-1 rounded-full">
+            {adCountdown > 0 ? `Reward in ${adCountdown}s` : 'Reward Granted!'}
+          </div>
+          <div className="text-slate-500 text-xs md:text-sm mb-3 border border-slate-800 px-3 py-1.5 rounded-lg bg-slate-900">
+            [ Sponsor Advertisement Simulation ]
+          </div>
+          <div className="w-full max-w-xs h-36 md:h-44 bg-slate-800 animate-pulse rounded-xl flex items-center justify-center">
+            <span className="text-slate-600 font-bold text-xs md:text-sm tracking-widest uppercase">Video Ad</span>
+          </div>
+        </div>
+      )}
+      
     </div>
+
   );
 }
