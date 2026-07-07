@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import CharacterSelect from './CharacterSelect'; 
+import Button from '../components/Button';
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 import { ObstacleManager } from '../utils/ObstacleManager';
@@ -390,10 +391,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     
     nextSkillMilestoneRef.current = 400; 
 
-    // 🎁 Grant each character's default starting skill loadout (set in
-    // CharacterSelect.jsx via startSkills). 'shield'/'revive' bump their
-    // stock counters; any other skill id is activated from SKILLS_REGISTRY
-    // using its normal duration/name/icon.
     const startSkillIds = selectedChar.startSkills || [];
     startSkillIds.forEach((id) => {
       if (id === 'shield') {
@@ -435,11 +432,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     canvas.height = 400 * dpr;
 
     ctx.scale(dpr, dpr);
-    // imageSmoothingEnabled is now toggled per-layer (see render loop below)
-    // instead of being forced off globally here. far-bg/mid-bg are smooth
-    // painterly art and need smoothing ON when scaled up; near-bg + character
-    // sprites are pixel art and need smoothing OFF to stay crisp. Forcing it
-    // off globally made far-bg/mid-bg look blotchy/low-quality when scaled.
 
     let animationFrameId;
     let localScore = score; 
@@ -593,15 +585,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           layer.x += scaledWidth; 
         }
 
-        // far (0) and mid (1) layers are smooth painterly art -> smoothing ON.
-        // near (2) layer is pixel-art style -> smoothing OFF for crisp edges.
         ctx.imageSmoothingEnabled = layerIndex !== 2;
         ctx.imageSmoothingQuality = 'high';
 
         if (scaledWidth > 0) {
-          // Round to whole pixels and overlap tiles by 1px to eliminate the
-          // hairline seam that appears when layer.x / scaledWidth are
-          // fractional (sub-pixel gaps between the two drawImage calls).
           const drawX = Math.round(layer.x);
           const tileW = Math.ceil(scaledWidth) + 1;
           ctx.drawImage(layer.img, drawX, yOffset, tileW, imgHeight);
@@ -609,13 +596,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
       });
 
-      // Restore pixel-art crispness for everything drawn after this point
-      // (player sprite, obstacles) since near-bg already used its own setting.
       ctx.imageSmoothingEnabled = false;
 
       bgEffects.render(ctx, Math.floor(localDistance));
 
-      // 🎯 Layer 4: Runner Ground Shadow
       ctx.save();
       const playerCenterX = player.x + player.width / 2;
       const heightAboveGround = groundY - (player.y + player.height);
@@ -634,7 +618,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         player.width = 64; player.height = 64;
       }
 
-      // centered 20% Forgiving Hitbox bounds
       const hitbox = {
         width: player.width * 0.8,
         height: player.height * 0.8,
@@ -642,7 +625,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         y: player.y + (player.height * 0.1)
       };
 
-      // --- RUNTIME ANIMATION MOTION MATRICES ACTION DECODER ---
       let runtimeAction = 'run';
       const spriteConfig = SPRITE_CONFIG_MAP[selectedChar.id] || SPRITE_CONFIG_MAP['jumpy_hero'];
       let activeMaxFrames = spriteConfig.runFrames;
@@ -705,7 +687,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         const cy = player.y + player.height / 2;
         const baseAlpha = 0.15 + shieldCountRef.current * 0.06;
 
-        // Filled radial gradient glow (center bright/transparent -> edge colored -> fully fades out)
         const gradient = ctx.createRadialGradient(cx, cy, shieldRadius * 0.3, cx, cy, shieldRadius);
         gradient.addColorStop(0, hexToRgba(shieldColor, 0));
         gradient.addColorStop(0.7, hexToRgba(shieldColor, baseAlpha));
@@ -716,7 +697,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Thin outer rim to keep the shield edge readable
         ctx.beginPath();
         ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
         ctx.strokeStyle = hexToRgba(shieldColor, 0.4 + shieldCountRef.current * 0.1);
@@ -725,7 +705,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.restore();
       }
 
-      // 🎯 Layer 6: Sprite Texture Stream Renderer
       ctx.save();
       ctx.shadowBlur = 15; ctx.shadowOffsetY = 6; ctx.shadowOffsetX = 2;
       
@@ -795,7 +774,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
         if (hitbox.x < ufo.x + ufo.width && hitbox.x + hitbox.width > ufo.x && hitbox.y < ufo.y + ufo.height && hitbox.y + hitbox.height > ufo.y) {
           if (isSkillActive('invisible')) {
-            continue; // Ghost mode: phase straight through, UFO stays intact
+            continue; 
           }
           if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(ufo.x, ufo.y, '#38bdf8'); 
@@ -913,7 +892,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
         if (hitbox.x < obs.x + obs.width && hitbox.x + hitbox.width > obs.x && hitbox.y < obs.y + obs.height && hitbox.y + hitbox.height > obs.y) {
           if (isSkillActive('invisible')) {
-            continue; // Ghost mode: phase straight through, obstacle stays intact
+            continue; 
           }
           if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(obs.x, obs.y, '#f59e0b', 6); 
@@ -1143,88 +1122,157 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       {/* 💀 PLAYFUL RUN COMPLETED PANEL OVERLAY */}
       {isGameOverScreen && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-purple-950/85 backdrop-blur-md z-40 p-4 animate-fade-in">
-          <div className="w-full max-w-md md:max-w-xl bg-gradient-to-b from-indigo-600 via-purple-700 to-indigo-900 border-4 border-yellow-400 rounded-3xl p-5 sm:p-6 md:p-8 shadow-[0_0_40px_rgba(250,204,21,0.5)] text-center relative overflow-hidden">
+        <div className="absolute inset-0 flex flex-col items-center justify-center backdrop-blur-md z-40 p-4 animate-fade-in">
+          
+          <div className="relative flex flex-col items-center scale-[0.8] lg:scale-[1] will-change-transform">
             
-            <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-pink-400 via-yellow-300 via-cyan-400 via-green-400 to-pink-400 bg-[length:200%_auto] animate-pulse" />
-            
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-yellow-300 uppercase drop-shadow-[0_4px_0px_rgba(0,0,0,0.6)] animate-bounce mb-1">
-              🎉 AWESOME RUN! 🎉
-            </h2>
-            <p className="text-cyan-200 text-xs sm:text-sm md:text-base font-bold tracking-wider uppercase mb-5 drop-shadow-[0_1px_2px_rgba(0,0,0,0.4)]">
-              Check out your spectacular score report!
-            </p>
-
-            <div className="grid grid-cols-3 gap-3 mb-5 md:mb-6">
-              <div className="bg-pink-500/30 border-2 border-pink-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#be185d]">
-                <p className="text-[10px] sm:text-xs font-black text-pink-200 uppercase tracking-wide mb-1">⭐ Stars</p>
-                <p className="text-xl sm:text-2xl md:text-3xl font-black text-white font-sans drop-shadow-[0_2px_0px_rgba(0,0,0,0.4)]">{score}</p>
+            {/* 📋 CHOPPED PIXEL-ART ASSET BANNER OVERLAY */}
+            <div className="flex items-center justify-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated z-50 md:-mb-6 -mb-15 translate-y-1 transform">
+              <img 
+                src="/assets/banner/left-bg.png" 
+                alt="" 
+                className="h-full object-contain select-none pointer-events-none" 
+              />
+              <div 
+                className="h-full flex items-center justify-center px-6 sm:px-12 bg-[url('/assets/banner/fill-bg.png')] bg-repeat-x bg-[length:auto_100%]"
+              >
+                <h2 className="text-xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap mb-2 font-bungee [-webkit-text-stroke:2px_#000000] mb-2">
+                  AWESOME RUN!
+                </h2>
               </div>
-              <div className="bg-cyan-500/30 border-2 border-cyan-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#0369a1]">
-                <p className="text-[10px] sm:text-xs font-black text-cyan-100 uppercase tracking-wide mb-1">🏃‍♂️ Steps</p>
-                <p className="text-xl sm:text-2xl md:text-3xl font-black text-white font-sans drop-shadow-[0_2px_0px_rgba(0,0,0,0.4)]">{distance}m</p>
-              </div>
-              <div className="bg-amber-500/30 border-2 border-amber-400 p-2 sm:p-3 rounded-2xl shadow-[0_4px_0px_#b45309]">
-                <p className="text-[10px] sm:text-xs font-black text-amber-200 uppercase tracking-wide mb-1">🪙 Coins</p>
-                <p className="text-xl sm:text-2xl md:text-3xl font-black text-yellow-300 font-sans drop-shadow-[0_2px_0px_rgba(0,0,0,0.4)]">{coins}</p>
-              </div>
+              <img 
+                src="/assets/banner/right-bg.png" 
+                alt="" 
+                className="h-full object-contain select-none pointer-events-none" 
+              />
             </div>
 
-            {/* 🏅 LEADERBOARD PLACEMENT BADGE */}
-            {highScores.length > 0 && (
-              <div className="bg-indigo-950/60 rounded-2xl p-3 md:p-4 border-2 border-purple-400/50 mb-5 md:mb-6 shadow-inner">
-                <div className="font-sans text-xs sm:text-sm tracking-wide">
-                  {(() => {
-                    const achievedRank = highScores.indexOf(score) + 1;
-                    if (achievedRank > 0) {
-                      return (
-                        <div className="flex flex-col sm:flex-row justify-between items-center gap-2 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-300 border-2 border-yellow-500 text-slate-900 font-black shadow-[0_4px_0px_rgba(0,0,0,0.25)] animate-pulse">
-                          <span className="text-[11px] sm:text-xs tracking-widest uppercase">🏆 NEW LEADERBOARD ENTRY!</span>
-                          <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-xs md:text-sm font-black tracking-tighter shadow-inner">
-                            RANK #{achievedRank} ACHIEVED
-                          </span>
-                        </div>
-                      );
-                    } else {
-                      return (
-                        <div className="flex justify-between items-center px-3 py-2 rounded-xl bg-indigo-900/40 text-purple-200 font-extrabold border border-purple-500/20">
-                          <span className="text-[11px] uppercase tracking-wider">✨ HIGH SCORE PLACEMENT:</span>
-                          <span className="text-purple-300 tracking-tight text-[11px] uppercase bg-purple-950/80 px-2.5 py-0.5 rounded-md">SUPERSTAR UNRANKED</span>
-                        </div>
-                      );
-                    }
-                  })()}
-                </div>
-              </div>
-            )}
+            {/* 📋 REBUILT MAIN SCORECARD BASE PANEL PIXEL-ART SANDWICH ASSEMBLY */}
+            <div className="w-full md:max-w-xl flex flex-col drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] image-render-pixelated relative">
+              
+              {/* Scoreboard Slice: Top Cap */}
+              <img 
+                src="/assets/scoreboard-top.png" 
+                alt="" 
+                className="w-full object-contain select-none pointer-events-none" 
+              />
+              
+              {/* Scoreboard Slice: Center Content Fill */}
+              <div 
+                className="w-full bg-[url('/assets/scoreboard-center.png')] bg-repeat-y bg-[length:100%_auto] px-6 py-1 flex flex-col items-center text-center"
+              >
+                <p className="text-amber-950 text-xs sm:text-sm font-black tracking-wider uppercase mb-5 drop-shadow-[0_1px_0_rgba(255,255,255,0.4)]">
+                  Check out your spectacular score report!
+                </p>
 
-            {/* Action Controller Buttons */}
-            <div className="flex flex-col sm:flex-row gap-3">
-              <button
+                {/* 📊 SCORE REPORT BOXES COMPLETE WITH SIBLING HANDLES (WOOD CAPS) */}
+                <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-4 w-full max-w-[480px] mx-auto">
+                  
+                  {/* Stars Box Column Bundle */}
+                  <div className="flex flex-col items-center select-none w-full">
+                    <div className="w-full h-[12px] sm:h-[15px] border-2 border-[#b68263] rounded-xl bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)] shadow-[0_-2px_4px_rgba(0,0,0,0.15)]" />
+                    
+                    <div className="w-[92%] relative flex flex-col items-center justify-between z-20 border-2 border-[#b68263] rounded-t-none rounded-md p-2 bg-[#f9e7c3] shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+                      <div className="w-full absolute top-0 left-0 h-[5px] bg-[#f0d2a6]"></div>
+             
+                      <div className="my-1.5 p-1.5 sm:p-2 rounded-lg bg-[#cfa174] border border-[#b68263]/30 flex items-center justify-center shadow-inner">
+                        <img src="/assets/status-star.png" alt="Stars" className="w-[20px] h-[20px] lg:w-[32px] lg:h-[32px] object-contain image-render-pixelated select-none pointer-events-none" />
+                      </div>
+                      <p className="text-sm sm:text-xl font-black text-slate-900 font-sans tracking-tight">
+                        {score}
+                      </p>
+                    </div>
+
+                    <div className="z-10 mt-[-6px] w-full h-[10px] sm:h-[12px] border-2 border-[#b68263] rounded-xl bg-[#b68263] shadow-[0_3px_5px_rgba(0,0,0,0.15)]" />
+                  </div>
+
+                  {/* Steps Box Column Bundle */}
+                  <div className="flex flex-col items-center select-none w-full">
+                    <div className="w-full h-[12px] sm:h-[15px] border-2 border-[#b68263] rounded-xl bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)] shadow-[0_-2px_4px_rgba(0,0,0,0.15)]" />
+                    
+                    <div className="w-[92%] relative flex flex-col items-center justify-between z-20 border-2 border-[#b68263] rounded-t-none rounded-md p-2 bg-[#f9e7c3] shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+                      <div className="w-full absolute top-0 left-0 h-[5px] bg-[#f0d2a6]"></div>
+
+                      <div className="my-1.5 p-1.5 sm:p-2 rounded-lg bg-[#cfa174] border border-[#b68263]/30 flex items-center justify-center shadow-inner">
+                        <img src="/assets/status-run.png" alt="Steps" className="w-[20px] h-[20px] lg:w-[32px] lg:h-[32px] object-contain image-render-pixelated select-none pointer-events-none" />
+                      </div>
+                      <p className="text-sm sm:text-xl font-black text-slate-900 font-sans tracking-tight whitespace-nowrap">
+                        {distance}m
+                      </p>
+                    </div>
+
+                    <div className="z-10 mt-[-6px] w-full h-[10px] sm:h-[12px] border-2 border-[#b68263] rounded-xl bg-[#b68263] shadow-[0_3px_5px_rgba(0,0,0,0.15)]" />
+                  </div>
+
+                  {/* Coins Box Column Bundle */}
+                  <div className="flex flex-col items-center select-none w-full">
+                    <div className="w-full h-[12px] sm:h-[15px] border-2 border-[#b68263] rounded-xl bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)] shadow-[0_-2px_4px_rgba(0,0,0,0.15)]" />
+                    
+                    <div className="w-[92%] relative flex flex-col items-center justify-between z-20 border-2 border-[#b68263] rounded-t-none rounded-md p-2 bg-[#f9e7c3] shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
+                      <div className="w-full absolute top-0 left-0 h-[5px] bg-[#f0d2a6]"></div>
+
+                      <div className="my-1.5 p-1.5 sm:p-2 rounded-lg bg-[#cfa174] border border-[#b68263]/30 flex items-center justify-center shadow-inner">
+                        <img src="/assets/status-coins.png" alt="Coins" className="w-[20px] h-[20px] lg:w-[32px] lg:h-[32px] object-contain image-render-pixelated select-none pointer-events-none" />
+                      </div>
+                      <p className="text-sm sm:text-xl font-black text-slate-900 font-sans tracking-tight">
+                        {coins}
+                      </p>
+                    </div>
+
+                    <div className="z-10 mt-[-6px] w-full h-[10px] sm:h-[12px] border-2 border-[#b68263] rounded-xl bg-[#b68263] shadow-[0_3px_5px_rgba(0,0,0,0.15)]" />
+                  </div>
+
+                </div>
+
+                {/* 🏅 LEADERBOARD PLACEMENT BADGE */}
+                {highScores.length > 0 && (
+                  <div className="flex items-center justify-center gap-2 sm:gap-3 text-amber-950 font-black tracking-wide text-xs sm:text-sm -mb-[20px] uppercase drop-shadow-[0_1px_0_rgba(255,255,255,0.4)]">
+                    <img src="/assets/trophy.png" alt="Trophy" className="h-6 sm:h-8 object-contain select-none pointer-events-none image-render-pixelated" />
+                    <span style={{ fontFamily: 'var(--font-fredoka)' }}>Your new rank:</span>
+                    {(() => {
+                      const achievedRank = highScores.indexOf(score) + 1;
+                      if (achievedRank === 1) return <img src="/assets/rank-gold.png" alt="Gold" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
+                      if (achievedRank === 2) return <img src="/assets/rank-silver.png" alt="Silver" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
+                      if (achievedRank === 3) return <img src="/assets/rank-bronze.png" alt="Bronze" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
+                      return <span className="text-xs sm:text-sm font-black font-mono bg-slate-950/20 text-slate-800 border border-slate-700/30 px-2.5 py-0.5 rounded-md shadow-inner ml-1">#{achievedRank}</span>;
+                    })()}
+                  </div>
+                )}
+              </div>
+              
+              {/* Scoreboard Slice: Bottom Cap */}
+              <img 
+                src="/assets/scoreboard-bot.png" 
+                alt="" 
+                className="w-full object-contain select-none pointer-events-none" 
+              />
+            </div>
+
+            {/* 🎮 REUSABLE ACTION INTERACTIVE CONTROLLER HUD BUTTONS */}
+            <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 px-4 pb-2 mt-4 z-10">
+              <Button
                 onClick={() => {
                   preloadGameplaySprites(selectedChar.id);
                   handleRestartRun();
                 }}
-                className="flex-1 bg-gradient-to-r from-green-400 to-emerald-500 hover:from-green-300 hover:to-emerald-400 text-white font-black text-sm md:text-base px-6 py-3.5 rounded-2xl shadow-[0_5px_0px_#047857] hover:shadow-[0_4px_0px_#047857] active:shadow-none border-2 border-green-300/30 transition-all transform hover:-translate-y-0.5 active:translate-y-1 tracking-wider uppercase"
-              >
-                🚀 DASH AGAIN!
-              </button>
-              <button
+                text="🚀 AGAIN!"
+                variant="primary"
+              />
+              <Button
                 onClick={() => {
                   setIsGameOverScreen(false);
                   setShowCharSelect(true); 
                 }}
-                className="px-6 py-3.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 font-bold text-sm rounded-xl transition-all uppercase tracking-wide"
-              >
-                🦸 Select Runner
-              </button>
-              <button
+                text="🦸 Select"
+                variant="secondary"
+              />
+              <Button
                 onClick={() => onMainMenu()}
-                className="px-6 py-3.5 bg-gradient-to-r from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 text-slate-200 font-extrabold text-sm rounded-2xl shadow-[0_5px_0px_#1e293b] hover:shadow-[0_4px_0px_#1e293b] active:shadow-none border-2 border-slate-600/30 transition-all transform hover:-translate-y-0.5 active:translate-y-1 tracking-wide"
-              >
-                Exit to Hub 🏡
-              </button>
+                text="Exit"
+                variant="secondary"
+              />
             </div>
+
           </div>
         </div>
       )}
@@ -1263,6 +1311,5 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       )}
       
     </div>
-
   );
 }

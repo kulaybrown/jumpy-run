@@ -120,18 +120,18 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
         <div className="absolute right-0 top-11 bottom-11 w-[11px] bg-[url('/assets/border/line-right.png')] bg-repeat-y bg-[length:11px]" />
       </div>
 
-      <div className="relative w-full h-full flex flex-col items-center justify-between p-4 md:p-5">
-        <div className="flex flex-col items-center justify-between h-full w-full z-10">
+      <div className="relative w-full h-full flex flex-col items-center justify-center p-4 md:p-5">
+        
+        {/* Board Alignment Housing Unit Wrapper */}
+        <div className="w-full max-w-3xl flex flex-col items-center relative my-auto scale-[0.8] scale-[0.8] lg:scale-[1] will-change-transform">
           
-          {/* 📋 CHOPPED PIXEL-ART ASSET BANNER OVERLAY */}
-          <div className="flex items-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated">
-            {/* Left Edge Slice Cap */}
+          {/* 📋 CHOPPED PIXEL-ART ASSET BANNER OVERLAY - Seated directly onto the scoreboard structure */}
+          <div className="flex items-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated z-50 -mb-5 translate-y-1 transform">
             <img 
               src="/assets/banner/left-bg.png" 
               alt="" 
               className="h-full object-contain select-none pointer-events-none" 
             />
-            {/* Middle Repeating Slice Fill */}
             <div 
               className="h-full flex items-center justify-center px-6 sm:px-12 bg-[url('/assets/banner/fill-bg.png')] bg-repeat-x bg-[length:auto_100%]"
             >
@@ -139,7 +139,6 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
                 Select your runner
               </h2>
             </div>
-            {/* Right Edge Slice Cap */}
             <img 
               src="/assets/banner/right-bg.png" 
               alt="" 
@@ -147,85 +146,98 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
             />
           </div>
 
-          {/* 📜 CHARACTER LIST SELECTION SCROLL GRID */}
-          <div className="max-w-5xl grid grid-cols-4 gap-2 md:gap-4 my-auto max-h-[70%] overflow-y-auto">
-            {CHARACTERS.map((char) => {
-              const isSelected = selectedId === char.id;
-              return (
-                <div 
-                  onClick={() => handleSelect(char)}
-                  className="group flex flex-col items-center justify-center w-[150px] md:w-[170px] cursor-pointer select-none" 
-                  key={char.id}
-                >
-                  {/* Decorative Upper Handle */}
-                  <div className={`w-[150px] md:w-[170px] h-[15px] border-2 rounded-xl transition-all duration-150
-                    ${isSelected 
-                      ? 'border-[#b68263] shadow-[0_-4px_12px_rgba(255,255,255,0.7)] bg-[linear-gradient(0deg,rgba(209,143,105,1)_0%,rgba(240,210,166,1)_100%)]' 
-                      : 'border-[#b68263] group-hover:shadow-[0_-4px_10px_rgba(255,255,255,0.4)] bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)]'
-                    }`}
-                  />
+          {/* 📋 SCOREBOARD PANEL PIXEL-ART SANDWICH LAYOUT HOUSING */}
+          <div className="flex flex-col drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] relative">
+            
+            
+            {/* Scoreboard Slice: Center Content Fill */}
+            <div 
+              className="flex flex-col items-center rounded-md border border-2 border-black p-5 bg-[#f7e3ba]"
+            >
+              {/* "Pick a runner" descriptive paragraph removed entirely */}
 
-                  {/* Main Character Display Card */}
-                  <div
-                    className={`w-[140px] md:w-[160px] relative flex flex-col items-center justify-between z-20 border-2 rounded-t-none rounded-md p-2 bg-[#f9e7c3]
-                      ${isSelected 
-                        ? 'border-[#b68263] shadow-[0_-4px_12px_rgba(255,255,255,0.7)] bg-[linear-gradient(0deg,rgba(209,143,105,1)_0%,rgba(240,210,166,1)_100%)]' 
-                        : 'border-[#b68263] shadow-[0_8px_16px_rgba(0,0,0,0.25),inset_0_0_40px_rgba(139,94,26,0.15)] group-hover:shadow-[0_0_20px_rgba(255,255,255,0.5)] hover:scale-[1.01]'
-                      }`}
-                  >
-                    <div className="w-full absolute top-0 left-0 h-[5px] bg-[#f0d2a6]"></div>
-                    
-                    {/* Character Identification Header */}
-                    <div className="text-center">
-                      <h3 className="text-base sm:text-md md:text-lg font-black tracking-tight leading-tight text-slate-800" 
-                        style={{ fontFamily: 'var(--font-fredoka)' }}
+              {/* 📜 CHARACTER LIST SELECTION SCROLL GRID */}
+              <div className="w-full max-w-2xl grid grid-cols-4 gap-2 md:gap-4 justify-items-center max-h-[220px] sm:max-h-[280px] overflow-y-auto pr-1 pb-1">
+                {CHARACTERS.map((char) => {
+                  const isSelected = selectedId === char.id;
+                  return (
+                    <div 
+                      onClick={() => handleSelect(char)}
+                      className="group flex flex-col items-center justify-center w-[120px] sm:w-[145px] md:w-[155px] cursor-pointer select-none" 
+                      key={char.id}
+                    >
+                      {/* Decorative Upper Handle */}
+                      <div className={`w-full h-[12px] sm:h-[14px] border-2 rounded-xl transition-all duration-150
+                        ${isSelected 
+                          ? 'border-[#b68263] shadow-[0_-4px_12px_rgba(255,255,255,0.7)] bg-[linear-gradient(0deg,rgba(209,143,105,1)_0%,rgba(240,210,166,1)_100%)]' 
+                          : 'border-[#b68263] group-hover:shadow-[0_-4px_10px_rgba(255,255,255,0.4)] bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)]'
+                        }`}
+                      />
+
+                      {/* Main Character Display Card */}
+                      <div
+                        className={`w-[92%] relative flex flex-col items-center justify-between z-20 border-2 rounded-t-none rounded-md p-2 bg-[#f9e7c3]
+                          ${isSelected 
+                            ? 'border-[#b68263] shadow-[0_-4px_12px_rgba(255,255,255,0.7)] bg-[linear-gradient(0deg,rgba(209,143,105,1)_0%,rgba(240,210,166,1)_100%)]' 
+                            : 'border-[#b68263] shadow-[0_8px_16px_rgba(0,0,0,0.25),inset_0_0_40px_rgba(139,94,26,0.15)] group-hover:shadow-[0_0_20px_rgba(255,255,255,0.5)] hover:scale-[1.01]'
+                          }`}
                       >
-                        {char.name}
-                      </h3>
-                    </div>
+                        <div className="w-full absolute top-0 left-0 h-[5px] bg-[#f0d2a6]"></div>
+                        
+                        {/* Character Identification Header */}
+                        <div className="text-center">
+                          <h3 className="text-xs sm:text-sm font-black tracking-tight leading-tight text-slate-800 uppercase" 
+                            style={{ fontFamily: 'var(--font-fredoka)' }}
+                          >
+                            {char.name}
+                          </h3>
+                        </div>
 
-                    {/* 🏃‍♂️ LIVE ANIMATED IDLE SPRITE PREVIEW */}
-                    <div className="my-2 h-16 sm:h-20 flex items-center justify-center transition-transform duration-200 group-hover:scale-110">
-                      <AnimatedIdleSprite
-                        folder={char.folder}
-                        fallbackSprite={char.sprite}
-                        frameCount={char.idleFrames}
+                        {/* 🏃‍♂️ LIVE ANIMATED IDLE SPRITE PREVIEW */}
+                        <div className="my-1.5 h-12 sm:h-16 flex items-center justify-center transition-transform duration-200 group-hover:scale-110">
+                          <AnimatedIdleSprite
+                            folder={char.folder}
+                            fallbackSprite={char.sprite}
+                            frameCount={char.idleFrames}
+                          />
+                        </div>
+
+                        {/* Dynamic Stat Display Bars */}
+                        <div className={`w-full space-y-2 pt-1.5 border-t ${isSelected ? 'border-amber-50/40' : 'border-amber-900/10'}`}>
+                          <div className="flex flex-row items-center justify-center gap-1">
+                            {(char.startSkills || []).map((skillId) => {
+                              const skillDef = SKILLS_REGISTRY.find((s) => s.id === skillId);
+                              if (!skillDef) return null;
+                              return (
+                                <div
+                                  key={skillId}
+                                  className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 shadow-[0_0_6px_rgba(168,85,247,0.3)] transition-all duration-200 ${isSelected ? 'bg-[#fff]' : 'bg-[#d5a37a]'}`}
+                                >
+                                  <span className="text-xs sm:text-sm">{skillDef.icon}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Decorative Lower Handle */}
+                      <div className={`z-10 mt-[-5px] w-full h-[10px] sm:h-[12px] border-2 rounded-xl transition-all duration-150 bg-[#b68263]
+                        ${isSelected 
+                          ? 'border-[#b68263] shadow-[0_4px_12px_rgba(255,255,255,0.7)] bg-[#b68263]' 
+                          : 'border-[#b68263] group-hover:shadow-[0_4px_10px_rgba(255,255,255,0.4)] bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)]'
+                        }`}
                       />
                     </div>
-
-                    {/* Dynamic Stat Display Bars */}
-                    <div className={`w-full space-y-2 pt-2 border-t ${isSelected ? 'border-amber-50' : 'border-amber-900/10'}`}>
-                      <div className="flex flex-row items-center justify-center gap-1 pt-1">
-                        {(char.startSkills || []).map((skillId) => {
-                          const skillDef = SKILLS_REGISTRY.find((s) => s.id === skillId);
-                          if (!skillDef) return null;
-                          return (
-                            <div
-                              key={skillId}
-                              className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 shadow-[0_0_6px_rgba(168,85,247,0.3)] transition-all duration-200 ${isSelected ? 'bg-[#fff]' : 'bg-[#d5a37a]'}`}
-                            >
-                              <span className="text-sm">{skillDef.icon}</span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Decorative Lower Handle */}
-                  <div className={`z-10 mt-[-6px] w-[150px] md:w-[170px] h-[12px] border-2 rounded-xl transition-all duration-150 bg-[#b68263]
-                    ${isSelected 
-                      ? 'border-[#b68263] shadow-[0_4px_12px_rgba(255,255,255,0.7)] bg-[#b68263]' 
-                      : 'border-[#b68263] group-hover:shadow-[0_4px_10px_rgba(255,255,255,0.4)] bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)]'
-                    }`}
-                  />
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
+            
           </div>
 
           {/* 🎮 LOWER INTERACTIVE CONTROL HUD FOOTER */}
-          <div className="w-full max-w-3xl flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 px-4 pb-2">
+          <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 px-4 mt-5 z-10">
             <Button onClick={onBack} text="Back" variant="secondary" />
             <Button onClick={onStartGame} text="START" variant="primary" />
           </div>
