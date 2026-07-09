@@ -4,6 +4,7 @@ import Button from '../components/Button';
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 import { ObstacleManager } from '../utils/ObstacleManager';
+import { supabase } from '../supabaseClient'; 
 
 // Plain static public paths definition
 const farCityImg = '/assets/far-bg.png';
@@ -39,7 +40,6 @@ const SHIELD_COLOR_MAP = {
 };
 
 // 🔁 Characters whose default skill re-activates itself on a fixed timer
-// throughout the run (in addition to being granted at the very start).
 const AUTO_SKILL_INTERVAL_MAP = {
   alien_ace: { id: 'invisible', interval: 20000 },   // Ghost Walk every 20s
   explorer_ava: { id: 'sonic', interval: 15000 },    // Sonic Pulse every 15s
@@ -55,7 +55,6 @@ const hexToRgba = (hex, alpha) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
-// Helper utility to programmatically generate a lightened variation of hex colors for icon borders
 const lightenColor = (hex, amount) => {
   const h = hex.replace('#', '');
   const num = parseInt(h, 16);
@@ -74,6 +73,14 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   // Game Character View Control States
   const [showCharSelect, setShowCharSelect] = useState(true);
   
+  // --- DATABASE & AUTHENTICATION MANAGEMENT STATES ---
+  const [userId, setUserId] = useState(null);
+  const [userEmail, setUserEmail] = useState(null);
+  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // 'login' or 'link'
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+
   const [selectedChar, setSelectedChar] = useState({
     id: 'jumpy_hero',
     name: 'JUMPY HERO',
@@ -129,7 +136,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   // Tracks when each character's recurring default skill should next re-fire
   const autoSkillNextTriggerRef = useRef(0);
 
-  // Dictionary collection to map multi-skill stacking streams: { [skillId]: { expires, name, icon } }
+  // Dictionary collection to map multi-skill stacking streams
   const activeSkillsRef = useRef({});
 
   const obstaclesRef = useRef([]);
@@ -161,6 +168,48 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       historicalCount = 0;
     }
     setDailyAdsUsed(historicalCount);
+
+    // Continuous Cloud Auth Sync Initialization
+    const checkAndInitializeUser = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          // Fall back to silent anonymous session
+          const { data, error } = await supabase.auth.signInAnonymously();
+          if (!error && data?.user) {
+            setUserId(data.user.id);
+            // Guarantee guest profile row exists natively
+            await supabase.from('players').upsert({ id: data.user.id, name: 'Guest' }, { onConflict: 'id' });
+          }
+        } else {
+          setUserId(session.user.id);
+          setUserEmail(session.user.email || null);
+          
+          // Verify public record match exists
+          await supabase.from('players').upsert({ 
+            id: session.user.id, 
+            email: session.user.email || null,
+            name: session.user.email ? session.user.email.split('@')[0] : 'Runner'
+          }, { onConflict: 'id' });
+
+          // Populate local score stats from cloud row records
+          const { data: topGlobalScores } = await supabase
+            .from('players')
+            .select('score')
+            .order('score', { ascending: false })
+            .limit(3);
+          
+          if (topGlobalScores && topGlobalScores.length > 0) {
+            setHighScores(topGlobalScores.map(row => row.score));
+          }
+        }
+      } catch (err) {
+        console.error("Database authentication context pipeline failure:", err);
+      }
+    };
+
+    checkAndInitializeUser();
   }, []);
 
   // --- CONSOLIDATED GRAPHICS PRELOADER PIPELINE ---
@@ -239,13 +288,129 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     }
   }, [adCountdown, adOverlay]);
 
-  const saveHighScore = (finalScore) => {
+  // --- FOOLPROOF DIRECT STORAGE SYNC ENGINE ---
+  const saveHighScore = async (finalScore) => {
     const currentScores = JSON.parse(localStorage.getItem('runner_high_scores')) || [];
-    const updated = [...currentScores, finalScore]
-      .sort((a, b) => b - a)
-      .slice(0, 3); 
+    const updated = [...currentScores, finalScore].sort((a, b) => b - a).slice(0, 3); 
     localStorage.setItem('runner_high_scores', JSON.stringify(updated));
     setHighScores(updated);
+
+    if (userId) {
+      try {
+        // 1. Get current stats to read the current attempts count
+        const { data: profile } = await supabase
+          .from('players')
+          .select('score, attempts')
+          .eq('id', userId)
+          .maybeSingle();
+
+        const currentAttempts = profile ? (profile.attempts || 0) + 1 : 1;
+        const highestScore = profile ? Math.max(profile.score || 0, finalScore) : finalScore;
+
+        // 2. Update both the high score and the attempt counter
+        const { error } = await supabase
+          .from('players')
+          .upsert({ 
+            id: userId, 
+            score: highestScore,
+            attempts: currentAttempts,
+            email: userEmail || null
+          }, { onConflict: 'id' });
+
+        if (error) throw error;
+        console.log(`Run #${currentAttempts} saved successfully!`);
+      } catch (err) {
+        console.error("Failed syncing metrics data to database:", err);
+      }
+    }
+  };
+
+  // --- UNIFIED RE-BUILT CREDENTIALS AUTHENTICATION HANDLER ---
+  const handleEmailAuth = async (e) => {
+    e.preventDefault();
+    if (!authEmail || !authPassword) return alert("Please specify valid credentials.");
+
+    if (authMode === 'link') {
+      // Upgrades anonymous browser token instance into permanent profile row matching credentials
+      const { data, error } = await supabase.auth.updateUser({
+        email: authEmail,
+        password: authPassword
+      });
+
+      if (error) return alert(`Linking Account Error: ${error.message}`);
+
+      if (data?.user) {
+        setUserEmail(data.user.email);
+        
+        // Force an upsert mutation into the table view to populate email field properties instantly
+        const { error: upsertError } = await supabase
+          .from('players')
+          .upsert({ 
+            id: data.user.id, 
+            email: data.user.email, 
+            name: data.user.email.split('@')[0] 
+          }, { onConflict: 'id' });
+
+        if (upsertError) console.error("Profile row field injection failed:", upsertError);
+
+        alert("Progress successfully saved to your cloud email profile!");
+        setShowAuthForm(false);
+      }
+    } else {
+      // Signs in returning player who already generated a verified email account credential
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password: authPassword
+      });
+
+      if (error) return alert(`Login error: ${error.message}`);
+
+      if (data?.user) {
+        setUserId(data.user.id);
+        setUserEmail(data.user.email);
+
+        // Run profile mapping assertion check
+        await supabase
+          .from('players')
+          .upsert({ 
+            id: data.user.id, 
+            email: data.user.email, 
+            name: data.user.email.split('@')[0] 
+          }, { onConflict: 'id' });
+
+        alert("Welcome back, Runner!");
+        setShowAuthForm(false);
+        
+        const { data: topGlobalScores } = await supabase
+          .from('players')
+          .select('score')
+          .order('score', { ascending: false })
+          .limit(3);
+        if (topGlobalScores) setHighScores(topGlobalScores.map(row => row.score));
+      }
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin
+      }
+    });
+    if (error) alert(`Google Provider Authentication Error: ${error.message}`);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUserId(null);
+    setUserEmail(null);
+    
+    const { data } = await supabase.auth.signInAnonymously();
+    if (data?.user) {
+      setUserId(data.user.id);
+      await supabase.from('players').upsert({ id: data.user.id, name: 'Guest' }, { onConflict: 'id' });
+    }
   };
 
   const triggerShake = (intensity) => {
@@ -380,11 +545,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (!gameplaySpriteCacheRef.current[key]) {
           const img = new Image();
           img.src = `/assets/animations/${config.folder}/${action.name}/${i}.png`;
-          
           img.onerror = () => {
             img.src = `/assets/animations/${config.folder}/idle/0.png`;
           };
-          
           gameplaySpriteCacheRef.current[key] = img;
         }
       }
@@ -916,7 +1079,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           triggerShake(8); 
           if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(obs.x, obs.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); obstacles.splice(i, 1); continue; }
           if (reviveCountRef.current > 0) {
-            reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); obstacles.length = 0; ufos.length = 0;
+            reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); ufos.length = 0; obstacles.length = 0;
             activeSkillsRef.current['invisible'] = { expires: Date.now() + 3000, name: 'Ghost Walk', icon: '👻' };
             continue;
           }
@@ -1027,17 +1190,48 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] bg-slate-950 border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
       
       {assetsLoaded && showCharSelect && (
-        <div className="absolute inset-0 z-50 w-full h-full">
-          <CharacterSelect 
-            onSelectCharacter={(char) => setSelectedChar(char)}
-            onBack={onMainMenu}
-            onStartGame={() => {
-              preloadGameplaySprites(selectedChar.id); 
-              handleRestartRun();
-              setShowCharSelect(false); 
-            }}
-          />
-        </div>
+        <>
+          <div className="absolute inset-0 z-50 w-full h-full">
+            <CharacterSelect 
+              onSelectCharacter={(char) => setSelectedChar(char)}
+              onBack={onMainMenu}
+              onStartGame={() => {
+                preloadGameplaySprites(selectedChar.id); 
+                handleRestartRun();
+                setShowCharSelect(false); 
+              }}
+            />
+          </div>
+
+          {/* Account Profile Status Cloud Sync HUD Anchor Panel */}
+          <div className="absolute top-4 left-4 z-55 max-w-xs select-none">
+            {userEmail ? (
+              <div className="p-2 bg-slate-900/90 border border-emerald-500/30 rounded-lg shadow-lg text-left backdrop-blur-xs flex flex-col gap-1">
+                <p className="text-[10px] text-emerald-400 font-medium font-mono">
+                  ☁️ Cloud Sync Active: <span className="underline">{userEmail}</span>
+                </p>
+                <button 
+                  onClick={handleLogout}
+                  className="text-[9px] text-slate-500 hover:text-rose-400 font-mono text-left transition-colors cursor-pointer"
+                >
+                  [ Sign Out ]
+                </button>
+              </div>
+            ) : (
+              <div className="p-2.5 bg-slate-900/90 border border-slate-700/50 rounded-xl shadow-lg text-left backdrop-blur-xs">
+                <p className="text-[10px] text-slate-400 mb-1.5 font-sans">
+                  Playing as Guest. Access profile:
+                </p>
+                <button 
+                  onClick={() => { setAuthMode('login'); setShowAuthForm(true); }}
+                  className="px-3 py-1 text-[10px] font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors shadow-md cursor-pointer"
+                >
+                  Sign In / Link Account
+                </button>
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {!assetsLoaded && (
@@ -1059,16 +1253,15 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           )}
         </div>
         
-        {/* Active Skills HUD Icons */}
+        {/* Active Skills HUD Icons Block */}
         <div className="flex flex-wrap gap-1 max-w-[40%] justify-center pointer-events-none">
           {activeSkills.map((sk) => {
-            // Check if the icon is an imported asset path or a regular string emoji
             const isImageIcon = typeof sk.icon === 'string' && (sk.icon.includes('/') || sk.icon.includes('.'));
             
             return (
               <div 
                 key={sk.id} 
-                className="w-6 h-6 sm:w-7 sm:h-7 border-2 bg-slate-950/20 rounded-lg flex items-center justify-center bg-cyan-600 text-white rounded-md overflow-hidden border border-cyan-400/40 animate-pulse text-sm sm:text-base shadow-md "
+                className="w-6 h-6 sm:w-7 sm:h-7 border-2 bg-slate-950/20 rounded-lg flex items-center justify-center bg-cyan-600 text-white rounded-md overflow-hidden border border-cyan-400/40 animate-pulse text-sm sm:text-base shadow-md p-0.5"
               >
                 {isImageIcon ? (
                   <img 
@@ -1077,11 +1270,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                     className="w-full h-full object-contain select-none pointer-events-none" 
                   />
                 ) : (
-                  <img 
-                    src="/assets/skill-icons/invisible.jpg" 
-                    alt="invisible" 
-                    className="w-full h-full object-contain select-none pointer-events-none" 
-                  />
+                  <span className="text-xs sm:text-sm select-none pointer-events-none filter drop-shadow-[0_1px_1px_rgba(0,0,0,0.5)]">
+                    {sk.icon}
+                  </span>
                 )}
               </div>
             );
@@ -1119,45 +1310,24 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       {/* 🎯 SKILL CARD CHOOSE MODAL OVERLAY */}
       {showCards && (
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 p-4 animate-fade-in">
-          
-          {/* Board Alignment Structure Container */}
           <div className="w-full max-w-xl md:max-w-2xl flex flex-col items-center relative">
             
-            {/* 📋 CHOPPED MIXEL-ART MILESTONE BANNER OVERLAY - Seated directly on top of the scoreboard structure */}
+            {/* 📋 CHOPPED MIXEL-ART MILESTONE BANNER OVERLAY */}
             <div className="flex items-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated z-50 -mb-6 sm:-mb-9 translate-y-1 transform">
-              <img 
-                src="/assets/banner/milestone-banner-left.png" 
-                alt="" 
-                className="h-full object-contain select-none pointer-events-none" 
-              />
-              <div 
-                className="h-full flex items-center justify-center px-6 sm:px-10 bg-[url('/assets/banner/milestone-banner-center.png')] bg-repeat-x bg-[length:auto_100%]"
-              >
+              <img src="/assets/banner/milestone-banner-left.png" alt="" className="h-full object-contain select-none pointer-events-none" />
+              <div className="h-full flex items-center justify-center px-6 sm:px-10 bg-[url('/assets/banner/milestone-banner-center.png')] bg-repeat-x bg-[length:auto_100%]">
                 <h2 className="text-xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap font-bungee [-webkit-text-stroke:2px_#000000]">
                   MILESTONE REACHED!
                 </h2>
               </div>
-              <img 
-                src="/assets/banner/milestone-banner-right.png" 
-                alt="" 
-                className="h-full object-contain select-none pointer-events-none" 
-              />
+              <img src="/assets/banner/milestone-banner-right.png" alt="" className="h-full object-contain select-none pointer-events-none" />
             </div>
 
             {/* 📋 SCOREBOARD PANEL PIXEL-ART SANDWICH LAYOUT HOUSING */}
             <div className="w-full flex flex-col drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] image-render-pixelated relative">
-              
-              {/* Scoreboard Slice: Top Cap */}
-              <img 
-                src="/assets/milestone-board-top.png" 
-                alt="" 
-                className="w-full object-contain select-none pointer-events-none" 
-              />
-              
-              {/* Scoreboard Slice: Center Content Fill */}
-              <div 
-                className="w-full bg-[url('/assets/milestone-board-center.png')] bg-repeat-y bg-[length:100%_auto] px-5 sm:px-8 md:px-10 pt-7 pb-3 flex flex-col items-center"
-              >
+              <img src="/assets/milestone-board-top.png" alt="" className="w-full object-contain select-none pointer-events-none" />
+              <div className="w-full bg-[url('/assets/milestone-board-center.png')] bg-repeat-y bg-[length:100%_auto] px-5 sm:px-8 md:px-10 pt-7 pb-3 flex flex-col items-center">
+                
                 {/* 📊 SKILLS LIST SELECTION GRID */}
                 <div className="grid grid-cols-3 gap-2.5 md:gap-4 w-full px-1 max-h-[220px] sm:max-h-[260px] overflow-y-auto">
                   {randomCards.map((skill) => {
@@ -1173,7 +1343,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                           style={{ backgroundColor: bgCol }}
                           className="group relative flex flex-col items-center text-center border-2 border-black/15 rounded-xl p-2 sm:p-1 hover:brightness-110 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-md overflow-hidden"
                         >
-                          {/* Skill Icon Frame Container with 2px lightened border color */}
                           <div
                             style={{ borderColor: lightBorderColor }}
                             className="w-11 h-11 sm:w-14 sm:h-14 mb-1.5 border-2 bg-slate-950/20 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-inner overflow-hidden select-none pointer-events-none"
@@ -1191,15 +1360,12 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                               </span>
                             )}
                           </div>
-                          {/* Skill Name Field - Rendered White */}
                           <h4 className="text-[9px] sm:text-[11px] md:text-xs font-black tracking-tight text-white uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)] line-clamp-1 mb-0.5 w-full">
                             {skill.name}
                           </h4>
-                          {/* Description Block - Rendered Black */}
                           <p className="text-[8px] sm:text-[9px] md:text-[10px] leading-tight text-black font-bold opacity-85 line-clamp-3 h-8 sm:h-9 md:h-10 px-0.5 overflow-hidden">
                             {skill.description}
                           </p>
-                          {/* Duration Metric Block - Rendered White */}
                           <div className="mt-1 w-full flex justify-center">
                             {skill.duration ? (
                               <span className="text-[10px] font-mono tracking-wider font-extrabold text-white bg-black/25 px-1.5 py-0.5 rounded uppercase">
@@ -1217,74 +1383,45 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                   })}
                 </div>
               </div>
-              
-              {/* Scoreboard Slice: Bottom Cap */}
-              <img 
-                src="/assets/milestone-board-bottom.png" 
-                alt="" 
-                className="w-full object-contain select-none pointer-events-none" 
-              />
+              <img src="/assets/milestone-board-bottom.png" alt="" className="w-full object-contain select-none pointer-events-none" />
             </div>
 
           </div>
         </div>
       )}
 
-      {/* 💀 PLAYFUL RUN COMPLETED PANEL OVERLAY */}
+      {/* 💀 RUN COMPLETED PANEL OVERLAY */}
       {isGameOverScreen && (
         <div className="absolute inset-0 flex flex-col items-center justify-center backdrop-blur-md z-40 p-4 animate-fade-in">
-          
           <div className="relative flex flex-col items-center scale-[0.8] lg:scale-[1] will-change-transform">
             
             {/* 📋 CHOPPED PIXEL-ART ASSET BANNER OVERLAY */}
             <div className="flex items-center justify-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated z-50 md:-mb-6 -mb-15 translate-y-1 transform">
-              <img 
-                src="/assets/banner/left-bg.png" 
-                alt="" 
-                className="h-full object-contain select-none pointer-events-none" 
-              />
-              <div 
-                className="h-full flex items-center justify-center px-6 sm:px-12 bg-[url('/assets/banner/fill-bg.png')] bg-repeat-x bg-[length:auto_100%]"
-              >
+              <img src="/assets/banner/left-bg.png" alt="" className="h-full object-contain select-none pointer-events-none" />
+              <div className="h-full flex items-center justify-center px-6 sm:px-12 bg-[url('/assets/banner/fill-bg.png')] bg-repeat-x bg-[length:auto_100%]">
                 <h2 className="text-xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap mb-2 font-bungee [-webkit-text-stroke:2px_#000000]">
                   AWESOME RUN!
                 </h2>
               </div>
-              <img 
-                src="/assets/banner/right-bg.png" 
-                alt="" 
-                className="h-full object-contain select-none pointer-events-none" 
-              />
+              <img src="/assets/banner/right-bg.png" alt="" className="h-full object-contain select-none pointer-events-none" />
             </div>
 
-            {/* 📋 REBUILT MAIN SCORECARD BASE PANEL PIXEL-ART SANDWICH ASSEMBLY */}
+            {/* 📋 SCOREBOARD BASE PANEL */}
             <div className="w-full md:max-w-xl flex flex-col drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] image-render-pixelated relative">
-              
-              {/* Scoreboard Slice: Top Cap */}
-              <img 
-                src="/assets/scoreboard-top.png" 
-                alt="" 
-                className="w-full object-contain select-none pointer-events-none" 
-              />
-              
-              {/* Scoreboard Slice: Center Content Fill */}
-              <div 
-                className="w-full bg-[url('/assets/scoreboard-center.png')] bg-repeat-y bg-[length:100%_auto] px-6 py-1 flex flex-col items-center text-center"
-              >
+              <img src="/assets/scoreboard-top.png" alt="" className="w-full object-contain select-none pointer-events-none" />
+              <div className="w-full bg-[url('/assets/scoreboard-center.png')] bg-repeat-y bg-[length:100%_auto] px-6 py-1 flex flex-col items-center text-center">
                 <p className="text-amber-950 text-xs sm:text-sm font-black tracking-wider uppercase mb-5 drop-shadow-[0_1px_0_rgba(255,255,255,0.4)]">
                   Check out your spectacular score report!
                 </p>
 
-                {/* 📊 SCORE REPORT BOXES COMPLETE WITH SIBLING HANDLES (WOOD CAPS) */}
+                {/* 📊 SCORE REPORT BOXES */}
                 <div className="grid grid-cols-3 gap-2.5 sm:gap-4 mb-4 w-full max-w-[480px] mx-auto">
                   
                   {/* Stars Box Column Bundle */}
                   <div className="flex flex-col items-center select-none w-full">
                     <div className="w-full h-[12px] sm:h-[15px] border-2 border-[#b68263] rounded-xl bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)] shadow-[0_-2px_4px_rgba(0,0,0,0.15)]" />
-                    
                     <div className="w-[92%] relative flex flex-col items-center justify-between z-20 border-2 border-[#b68263] rounded-t-none rounded-md p-2 bg-[#f9e7c3] shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
                       <div className="w-full absolute top-0 left-0 h-[5px] bg-[#f0d2a6]"></div>
-             
                       <div className="my-1.5 p-1.5 sm:p-2 rounded-lg bg-[#cfa174] border border-[#b68263]/30 flex items-center justify-center shadow-inner">
                         <img src="/assets/status-star.png" alt="Stars" className="w-[20px] h-[20px] lg:w-[32px] lg:h-[32px] object-contain image-render-pixelated select-none pointer-events-none" />
                       </div>
@@ -1292,17 +1429,14 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                         {score}
                       </p>
                     </div>
-
                     <div className="z-10 mt-[-6px] w-full h-[10px] sm:h-[12px] border-2 border-[#b68263] rounded-xl bg-[#b68263] shadow-[0_3px_5px_rgba(0,0,0,0.15)]" />
                   </div>
 
                   {/* Steps Box Column Bundle */}
                   <div className="flex flex-col items-center select-none w-full">
                     <div className="w-full h-[12px] sm:h-[15px] border-2 border-[#b68263] rounded-xl bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)] shadow-[0_-2px_4px_rgba(0,0,0,0.15)]" />
-                    
                     <div className="w-[92%] relative flex flex-col items-center justify-between z-20 border-2 border-[#b68263] rounded-t-none rounded-md p-2 bg-[#f9e7c3] shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
                       <div className="w-full absolute top-0 left-0 h-[5px] bg-[#f0d2a6]"></div>
-
                       <div className="my-1.5 p-1.5 sm:p-2 rounded-lg bg-[#cfa174] border border-[#b68263]/30 flex items-center justify-center shadow-inner">
                         <img src="/assets/status-run.png" alt="Steps" className="w-[20px] h-[20px] lg:w-[32px] lg:h-[32px] object-contain image-render-pixelated select-none pointer-events-none" />
                       </div>
@@ -1310,17 +1444,14 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                         {distance}m
                       </p>
                     </div>
-
                     <div className="z-10 mt-[-6px] w-full h-[10px] sm:h-[12px] border-2 border-[#b68263] rounded-xl bg-[#b68263] shadow-[0_3px_5px_rgba(0,0,0,0.15)]" />
                   </div>
 
                   {/* Coins Box Column Bundle */}
                   <div className="flex flex-col items-center select-none w-full">
                     <div className="w-full h-[12px] sm:h-[15px] border-2 border-[#b68263] rounded-xl bg-[linear-gradient(180deg,rgba(250,231,194,1)_0%,rgba(240,210,166,1)_100%)] shadow-[0_-2px_4px_rgba(0,0,0,0.15)]" />
-                    
                     <div className="w-[92%] relative flex flex-col items-center justify-between z-20 border-2 border-[#b68263] rounded-t-none rounded-md p-2 bg-[#f9e7c3] shadow-[0_4px_8px_rgba(0,0,0,0.25)]">
                       <div className="w-full absolute top-0 left-0 h-[5px] bg-[#f0d2a6]"></div>
-
                       <div className="my-1.5 p-1.5 sm:p-2 rounded-lg bg-[#cfa174] border border-[#b68263]/30 flex items-center justify-center shadow-inner">
                         <img src="/assets/status-coins.png" alt="Coins" className="w-[20px] h-[20px] lg:w-[32px] lg:h-[32px] object-contain image-render-pixelated select-none pointer-events-none" />
                       </div>
@@ -1328,7 +1459,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                         {coins}
                       </p>
                     </div>
-
                     <div className="z-10 mt-[-6px] w-full h-[10px] sm:h-[12px] border-2 border-[#b68263] rounded-xl bg-[#b68263] shadow-[0_3px_5px_rgba(0,0,0,0.15)]" />
                   </div>
 
@@ -1338,27 +1468,21 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                 {highScores.length > 0 && (
                   <div className="flex items-center justify-center gap-2 sm:gap-3 text-amber-950 font-black tracking-wide text-xs sm:text-sm -mb-[20px] uppercase drop-shadow-[0_1px_0_rgba(255,255,255,0.4)]">
                     <img src="/assets/trophy.png" alt="Trophy" className="h-6 sm:h-8 object-contain select-none pointer-events-none image-render-pixelated" />
-                    <span style={{ fontFamily: 'var(--font-fredoka)' }}>Your new rank:</span>
+                    <span>Your rank:</span>
                     {(() => {
                       const achievedRank = highScores.indexOf(score) + 1;
                       if (achievedRank === 1) return <img src="/assets/rank-gold.png" alt="Gold" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
                       if (achievedRank === 2) return <img src="/assets/rank-silver.png" alt="Silver" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
                       if (achievedRank === 3) return <img src="/assets/rank-bronze.png" alt="Bronze" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
-                      return <span className="text-xs sm:text-sm font-black font-mono bg-slate-950/20 text-slate-800 border border-slate-700/30 px-2.5 py-0.5 rounded-md shadow-inner ml-1">#{achievedRank}</span>;
+                      return <span className="text-xs sm:text-sm font-black font-mono bg-slate-950/20 text-slate-800 border border-slate-700/30 px-2.5 py-0.5 rounded-md shadow-inner ml-1">#{achievedRank || '--'}</span>;
                     })()}
                   </div>
                 )}
               </div>
-              
-              {/* Scoreboard Slice: Bottom Cap */}
-              <img 
-                src="/assets/scoreboard-bot.png" 
-                alt="" 
-                className="w-full object-contain select-none pointer-events-none" 
-              />
+              <img src="/assets/scoreboard-bot.png" alt="" className="w-full object-contain select-none pointer-events-none" />
             </div>
 
-            {/* 🎮 REUSABLE ACTION INTERACTIVE CONTROLLER HUD BUTTONS */}
+            {/* ACTION CONTROLLER HUD BUTTONS */}
             <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 px-4 pb-2 mt-4 z-10">
               <Button
                 onClick={() => {
@@ -1377,12 +1501,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                 text="🦸 Select"
                 variant="secondary"
               />
-              <Button
-                onClick={() => onMainMenu()}
-                text="✖"
-                variant="secondary"
-                outline={false}
-              />
+              <Button onClick={() => onMainMenu()} text="✖" variant="secondary" outline={false} />
             </div>
 
           </div>
@@ -1396,10 +1515,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
             <h3 className="text-base font-bold text-white mb-1">Continue Run?</h3>
             <p className="text-xs text-slate-400 mb-4">Watch a short ad to revive and keep your score.</p>
             <div className="flex flex-col gap-2.5">
-              <button onClick={watchRewardedAd} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-lg">
+              <button onClick={watchRewardedAd} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition-colors shadow-lg cursor-pointer">
                 🎥 Watch Ad to Revive
               </button>
-              <button onClick={handleSkipAdRevive} className="text-slate-500 hover:text-slate-300 text-[11px] font-semibold py-1">
+              <button onClick={handleSkipAdRevive} className="text-slate-500 hover:text-slate-300 text-[11px] font-semibold py-1 cursor-pointer">
                 Skip & End Run
               </button>
             </div>
@@ -1418,6 +1537,106 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           </div>
           <div className="w-full max-w-xs h-36 md:h-44 bg-slate-800 animate-pulse rounded-xl flex items-center justify-center">
             <span className="text-slate-600 font-bold text-xs md:text-sm tracking-widest uppercase">Video Ad</span>
+          </div>
+        </div>
+      )}
+      
+      {/* 🔐 SIGN IN / PROGRESS LINKING EXPANDED AUTH MODAL */}
+      {showAuthForm && (
+        <div className="absolute inset-0 bg-black/85 z-[100] flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl w-full max-w-sm shadow-2xl space-y-4 font-mono">
+            
+            <div>
+              <h3 className="text-sm font-bold text-white tracking-wide">
+                {authMode === 'login' ? 'Welcome Back, Runner' : 'Save Progress via Email'}
+              </h3>
+              <p className="text-[11px] text-slate-400 mt-0.5 font-sans">
+                {authMode === 'login' ? 'Log into your existing permanent profile.' : 'Secure your guest stats to load them on any device.'}
+              </p>
+            </div>
+
+            {/* Switch tabs mode interface element */}
+            <div className="flex bg-slate-950 p-1 border border-slate-800 rounded-lg text-[10px] font-bold">
+              <button 
+                type="button"
+                onClick={() => setAuthMode('login')}
+                className={`flex-1 py-1 rounded-md transition-all ${authMode === 'login' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                LOG IN
+              </button>
+              <button 
+                type="button"
+                onClick={() => setAuthMode('link')}
+                className={`flex-1 py-1 rounded-md transition-all ${authMode === 'link' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+              >
+                LINK GUEST RUN
+              </button>
+            </div>
+
+            {/* Google Authentication Anchor Button */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-900 font-bold py-2 rounded-xl text-xs transition-all shadow-md cursor-pointer"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24">
+                <path fill="#EA4335" d="M12 5.04c1.64 0 3.12.56 4.28 1.67l3.2-3.2C17.52 1.58 14.96 1 12 1 7.35 1 3.4 3.65 1.5 7.5l3.6 2.8C6.01 6.94 8.78 5.04 12 5.04z"/>
+                <path fill="#4285F4" d="M23.49 12.27c0-.81-.07-1.59-.2-2.36H12v4.51h6.46c-.29 1.48-1.14 2.73-2.42 3.57v2.97h3.91c2.28-2.1 3.54-5.19 3.54-8.69z"/>
+                <path fill="#FBBC05" d="M5.1 14.3c-.25-.75-.39-1.55-.39-2.3s.14-1.55.39-2.3L1.5 6.9C.54 8.81 0 10.95 0 13s.54 4.19 1.5 6.1l3.6-2.8z"/>
+                <path fill="#34A853" d="M12 23c3.24 0 5.97-1.07 7.96-2.91l-3.91-2.97c-1.08.72-2.48 1.16-4.05 1.16-3.22 0-5.99-1.9-6.99-4.76l-3.6 2.8C3.4 20.35 7.35 23 12 23z"/>
+              </svg>
+              Continue with Google
+            </button>
+
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-slate-800"></div>
+              <span className="flex-shrink mx-3 text-[9px] text-slate-500 uppercase tracking-widest font-bold">Or Email</span>
+              <div className="flex-grow border-t border-slate-800"></div>
+            </div>
+
+            {/* Email Authentication form handler context wrapper */}
+            <form onSubmit={handleEmailAuth} className="space-y-3 text-left">
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1 tracking-wider">Email Address</label>
+                <input 
+                  type="email" 
+                  value={authEmail} 
+                  onChange={(e) => setAuthEmail(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-xs p-2 rounded-lg text-white outline-hidden focus:border-indigo-500 font-mono" 
+                  placeholder="runner@pixel.com"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1 tracking-wider">Password</label>
+                <input 
+                  type="password" 
+                  value={authPassword} 
+                  onChange={(e) => setAuthPassword(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 text-xs p-2 rounded-lg text-white outline-hidden focus:border-indigo-500 font-mono" 
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button 
+                  type="button" 
+                  onClick={() => setShowAuthForm(false)}
+                  className="flex-1 py-2 text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 font-medium rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit"
+                  className="flex-1 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+                >
+                  {authMode === 'login' ? 'Sign In' : 'Link Account'}
+                </button>
+              </div>
+            </form>
+            
           </div>
         </div>
       )}
