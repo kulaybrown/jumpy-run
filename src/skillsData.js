@@ -1,107 +1,138 @@
+const iconMagnet = 'assets/skill-icons/magnet.jpg';
+const iconShield = 'assets/skill-icons/shield.jpg';
+const iconSlow = 'assets/skill-icons/slow.jpg';
+const iconSpring = 'assets/skill-icons/spring.jpg';
+const iconShrink = 'assets/skill-icons/shrink.jpg';
+const iconFly = 'assets/skill-icons/fly.jpg';
+const iconGravity = 'assets/skill-icons/gravity.jpg';
+const iconSonic = 'assets/skill-icons/sonic.jpg';
+const iconLucky = 'assets/skill-icons/lucky.jpg';
+const iconDouble = 'assets/skill-icons/double.jpg';
+const iconInvisible = 'assets/skill-icons/invisible.jpg';
+const iconSprint = 'assets/skill-icons/sprint.jpg';
+const iconMultiplier = 'assets/skill-icons/multiplier.jpg';
+const iconRevive = 'assets/skill-icons/revive.jpg';
+const iconBurst = 'assets/skill-icons/burst.jpg';
+
 export const SKILLS_REGISTRY = [
   {
     id: 'magnet',
     name: 'Coin Magnet',
-    icon: '🧲',
-    description: 'Generates an electromagnetic field that pulls all nearby golden coins directly toward your location.',
-    duration: 8000
+    icon: iconMagnet,
+    description: 'Pulls all nearby coins directly to your location.',
+    duration: 8000,
+    backgroundColor: '#3f70ab',
   },
   {
     id: 'slow',
     name: 'Time Warp',
-    icon: '⏳',
-    description: 'Alters the local engine runtime velocity, slowing down incoming obstacles by 40% for safer maneuvering.',
-    duration: 7000
+    icon: iconSlow,
+    description: 'Slows down incoming obstacles by 40%.',
+    duration: 7000,
+    backgroundColor: '#33b1c0',
   },
   {
     id: 'sprint',
     name: 'Super Sprint',
-    icon: '⚡',
-    description: 'Boosts your run speed to maximum velocity. Grants full invincibility against all front-facing hazards.',
-    duration: 5000
+    icon: iconSprint,
+    description: 'Maxes out run speed and grants frontal invincibility.',
+    duration: 5000,
+    backgroundColor: '#b63e40',
   },
   {
     id: 'shield',
     name: 'Energy Shield',
-    icon: '🛡️',
-    description: 'Deploys a protective hard-light barrier that absorbs the impact force of the next obstacle hit.',
-    duration: 12000
+    icon: iconShield,
+    description: 'Absorbs the impact of the next obstacle hit.',
+    duration: 12000,
+    backgroundColor: '#519558',
   },
   {
     id: 'shrink',
     name: 'Micro Form',
-    icon: '🔬',
-    description: 'Compresses your character block to half its normal size, allowing you to easily slip beneath tight spaces.',
-    duration: 8000
+    icon: iconShrink,
+    description: 'Shrinks you to half-size to easily slip through tight spaces.',
+    duration: 8000,
+    backgroundColor: '#834da1',
   },
   {
     id: 'fly',
     name: 'Rocket Jetpack',
-    icon: '🚀',
-    description: 'Defies gravity entirely to lift your character high into the upper sky layer, far above ground dangers.',
-    duration: 6000
+    icon: iconFly,
+    description: 'Lifts you into the sky, far above ground dangers.',
+    duration: 6000,
+    backgroundColor: '#da761e',
   },
   {
     id: 'gravity',
     name: 'Gravity Flip',
-    icon: '🌌',
-    description: 'Inverts the gravitational constant. Tap to walk along the ceiling or drop back down to the ground.',
-    duration: 8000
+    icon: iconGravity,
+    description: 'Inverts gravity. Tap to walk on the ceiling or ground.',
+    duration: 8000,
+    backgroundColor: '#394c8e',
   },
   {
     id: 'sonic',
     name: 'Sonic Pulse',
-    icon: '🔊',
-    description: 'Emits a recurring shockwave forward every few seconds that obliterates the closest obstacle in your path.',
-    duration: 10000
+    icon: iconSonic,
+    description: 'Emits shockwaves that destroy the closest obstacle in your path.',
+    duration: 10000,
+    backgroundColor: '#e9c437',
   },
   {
     id: 'lucky',
     name: 'Gold Rush',
-    icon: '🍀',
-    description: 'Alters the procedural generation code, spawning clusters of bonus golden coins at triple the normal rate.',
-    duration: 6000
+    icon: iconLucky,
+    description: 'Spawns clusters of bonus coins at triple the normal rate.',
+    duration: 6000,
+    backgroundColor: '#2a8c8b',
   },
   {
     id: 'double',
     name: 'Double Points',
-    icon: '🪙',
-    description: 'Hacks the internal tracking system to double all coin collection counts and point values earned.',
-    duration: 9000
+    icon: iconDouble,
+    description: 'Doubles all collected coins and points earned.',
+    duration: 9000,
+    backgroundColor: '#66a1d9',
   },
   {
     id: 'invisible',
     name: 'Ghost Walk',
-    icon: '👻',
-    description: 'Shifts your block out of the physical phase, allowing you to pass safely right through solid objects.',
-    duration: 5000
+    icon: iconInvisible,
+    description: 'Allows you to pass safely through solid objects.',
+    duration: 5000,
+    backgroundColor: '#9e9e9e',
   },
   {
     id: 'spring',
     name: 'Bounce Boots',
-    icon: '👟',
-    description: 'Modifies your leg mechanics, giving you the ability to perform infinite mid-air jumps consecutively.',
-    duration: 7000
+    icon: iconSpring,
+    description: 'Grants the ability to perform infinite mid-air jumps.',
+    duration: 7000,
+    backgroundColor: '#ba4093',
   },
   {
     id: 'multiplier',
     name: 'Score Overdrive',
-    icon: '📈',
-    description: 'Overclocks your baseline telemetry systems to multiply your passive survival score gains by 300%.',
-    duration: 8000
+    icon: iconMultiplier,
+    description: 'Multiplies your passive survival score gains by 300%.',
+    duration: 8000,
+    backgroundColor: '#dd5231',
   },
   {
     id: 'revive',
     name: 'Second Chance',
-    icon: '❤️',
-    description: 'Installs an automatic system backup. If you hit an obstacle, you instantly phase into a 3s ghost walk instead of losing.',
-    duration: 15000
+    icon: iconRevive,
+    description: 'Triggers a 3-second ghost walk upon hitting an obstacle instead of losing.',
+    duration: 15000,
+    backgroundColor: '#b23a3c',
   },
   {
     id: 'burst',
     name: 'Coin Burst',
-    icon: '💥',
-    description: 'Instantly explodes every active obstacle currently on your screen, transforming them into valuable golden coins.',
-    duration: null
+    icon: iconBurst,
+    description: 'Instantly explodes all screen obstacles into golden coins.',
+    duration: null,
+    backgroundColor: '#844ca5',
   }
 ];

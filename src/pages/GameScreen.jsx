@@ -55,6 +55,19 @@ const hexToRgba = (hex, alpha) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+// Helper utility to programmatically generate a lightened variation of hex colors for icon borders
+const lightenColor = (hex, amount) => {
+  const h = hex.replace('#', '');
+  const num = parseInt(h, 16);
+  let r = (num >> 16) + amount;
+  let g = ((num >> 8) & 255) + amount;
+  let b = (num & 255) + amount;
+  r = Math.min(255, Math.max(0, r));
+  g = Math.min(255, Math.max(0, g));
+  b = Math.min(255, Math.max(0, b));
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+};
+
 export default function GameScreen({ playerColor, onMainMenu }) {
   const canvasRef = useRef(null);
   
@@ -1011,7 +1024,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen, assetsLoaded, showCharSelect, selectedChar]); 
 
   return (
-    <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] bg-slate-950 border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
+    <div className="relative w-full max-w-[1400px] h-full sm:max-h-[430px] lg:h-auto lg:aspect-[2/1] bg-slate-950 border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
       
       {assetsLoaded && showCharSelect && (
         <div className="absolute inset-0 z-50 w-full h-full">
@@ -1084,38 +1097,114 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       {/* 🎯 SKILL CARD CHOOSE MODAL OVERLAY */}
       {showCards && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 p-4">
-          <div className="text-center mb-4 md:mb-6">
-            <h3 className="text-base sm:text-xl md:text-2xl font-black tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-indigo-400 uppercase">
-              🚀 Milestone Reached!
-            </h3>
-            <p className="text-[10px] sm:text-xs md:text-sm text-slate-400 mt-0.5">Select a skill upgrade to bolster your current run</p>
-          </div>
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 p-4 animate-fade-in">
           
-          <div className="grid grid-cols-3 gap-2.5 md:gap-4 w-full max-w-xl md:max-w-2xl px-2">
-            {randomCards.map((skill) => (
-              <button
-                key={skill.id}
-                onClick={() => handleSelectSkill(skill)}
-                className="group relative flex flex-col items-center text-center bg-slate-900/90 border border-white/10 rounded-xl p-2 sm:p-3 md:p-4 hover:border-cyan-500/50 hover:bg-slate-800/80 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-xl overflow-hidden"
+          {/* Board Alignment Structure Container */}
+          <div className="w-full max-w-xl md:max-w-2xl flex flex-col items-center relative">
+            
+            {/* 📋 CHOPPED MIXEL-ART MILESTONE BANNER OVERLAY - Seated directly on top of the scoreboard structure */}
+            <div className="flex items-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated z-50 -mb-6 sm:-mb-9 translate-y-1 transform">
+              <img 
+                src="/assets/banner/milestone-banner-left.png" 
+                alt="" 
+                className="h-full object-contain select-none pointer-events-none" 
+              />
+              <div 
+                className="h-full flex items-center justify-center px-6 sm:px-10 bg-[url('/assets/banner/milestone-banner-center.png')] bg-repeat-x bg-[length:auto_100%]"
               >
-                <div className="absolute -inset-px bg-gradient-to-b from-cyan-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-xl" />
-                <div className="text-2xl sm:text-3xl md:text-4xl mb-1.5 p-1.5 sm:p-2 bg-slate-950 rounded-lg group-hover:scale-110 transition-transform shadow-inner">
-                  {skill.icon}
+                <h2 className="text-xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap font-bungee [-webkit-text-stroke:2px_#000000]">
+                  MILESTONE REACHED!
+                </h2>
+              </div>
+              <img 
+                src="/assets/banner/milestone-banner-right.png" 
+                alt="" 
+                className="h-full object-contain select-none pointer-events-none" 
+              />
+            </div>
+
+            {/* 📋 SCOREBOARD PANEL PIXEL-ART SANDWICH LAYOUT HOUSING */}
+            <div className="w-full flex flex-col drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] image-render-pixelated relative">
+              
+              {/* Scoreboard Slice: Top Cap */}
+              <img 
+                src="/assets/milestone-board-top.png" 
+                alt="" 
+                className="w-full object-contain select-none pointer-events-none" 
+              />
+              
+              {/* Scoreboard Slice: Center Content Fill */}
+              <div 
+                className="w-full bg-[url('/assets/milestone-board-center.png')] bg-repeat-y bg-[length:100%_auto] px-5 sm:px-8 md:px-10 pt-7 pb-3 flex flex-col items-center"
+              >
+                {/* 📊 SKILLS LIST SELECTION GRID */}
+                <div className="grid grid-cols-3 gap-2.5 md:gap-4 w-full px-1 max-h-[220px] sm:max-h-[260px] overflow-y-auto">
+                  {randomCards.map((skill) => {
+                    const bgCol = skill.backgroundColor || '#475569';
+                    const lightBorderColor = lightenColor(bgCol, 40);
+                    const darkenColor = lightenColor(bgCol, -20);
+                    const isImageIcon = skill.icon.startsWith('assets/') || skill.icon.includes('/');
+
+                    return (
+                      <div className="p-1 rounded-xl border-2" style={{ backgroundColor: lightBorderColor, borderColor: darkenColor }} key={skill.id}>
+                        <button
+                          onClick={() => handleSelectSkill(skill)}
+                          style={{ backgroundColor: bgCol }}
+                          className="group relative flex flex-col items-center text-center border-2 border-black/15 rounded-xl p-2 sm:p-1 hover:brightness-110 transition-all transform hover:-translate-y-0.5 active:scale-95 shadow-md overflow-hidden"
+                        >
+                          {/* Skill Icon Frame Container with 2px lightened border color */}
+                          <div
+                            style={{ borderColor: lightBorderColor }}
+                            className="w-11 h-11 sm:w-14 sm:h-14 mb-1.5 border-2 bg-slate-950/20 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-inner overflow-hidden select-none pointer-events-none"
+                          >
+                            {isImageIcon ? (
+                              <img
+                                src={`/${skill.icon}`}
+                                alt={skill.name}
+                                className="w-full h-full object-cover image-render-pixelated"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                            ) : (
+                              <span className="text-xl sm:text-2xl filter drop-shadow-[0_2px_2px_rgba(0,0,0,0.3)]">
+                                {skill.icon}
+                              </span>
+                            )}
+                          </div>
+                          {/* Skill Name Field - Rendered White */}
+                          <h4 className="text-[9px] sm:text-[11px] md:text-xs font-black tracking-tight text-white uppercase drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)] line-clamp-1 mb-0.5 w-full">
+                            {skill.name}
+                          </h4>
+                          {/* Description Block - Rendered Black */}
+                          <p className="text-[8px] sm:text-[9px] md:text-[10px] leading-tight text-black font-bold opacity-85 line-clamp-3 h-8 sm:h-9 md:h-10 px-0.5 overflow-hidden">
+                            {skill.description}
+                          </p>
+                          {/* Duration Metric Block - Rendered White */}
+                          <div className="mt-1 w-full flex justify-center">
+                            {skill.duration ? (
+                              <span className="text-[10px] font-mono tracking-wider font-extrabold text-white bg-black/25 px-1.5 py-0.5 rounded uppercase">
+                                ⏱️ {skill.duration / 1000}s
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono tracking-wider font-extrabold text-white bg-black/25 px-1.5 py-0.5 rounded uppercase">
+                                ⚡ INSTANT
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-                <h4 className="text-[10px] sm:text-xs md:text-sm font-extrabold text-white group-hover:text-cyan-400 transition-colors line-clamp-1 mb-0.5">
-                  {skill.name}
-                </h4>
-                <p className="text-[9px] sm:text-[10px] md:text-xs leading-tight text-slate-400 group-hover:text-slate-300 transition-colors line-clamp-2 h-6 sm:h-7 md:h-8 font-medium">
-                  {skill.description}
-                </p>
-                {skill.duration && (
-                  <span className="mt-2 text-[8px] sm:text-[9px] font-mono tracking-wider bg-slate-950 text-cyan-400 px-1.5 py-0.5 rounded-md uppercase opacity-75">
-                    ⏱️ {(skill.duration / 1000)}s
-                  </span>
-                )}
-              </button>
-            ))}
+              </div>
+              
+              {/* Scoreboard Slice: Bottom Cap */}
+              <img 
+                src="/assets/milestone-board-bottom.png" 
+                alt="" 
+                className="w-full object-contain select-none pointer-events-none" 
+              />
+            </div>
+
           </div>
         </div>
       )}
@@ -1136,7 +1225,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
               <div 
                 className="h-full flex items-center justify-center px-6 sm:px-12 bg-[url('/assets/banner/fill-bg.png')] bg-repeat-x bg-[length:auto_100%]"
               >
-                <h2 className="text-xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap mb-2 font-bungee [-webkit-text-stroke:2px_#000000] mb-2">
+                <h2 className="text-xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap mb-2 font-bungee [-webkit-text-stroke:2px_#000000]">
                   AWESOME RUN!
                 </h2>
               </div>
