@@ -1024,7 +1024,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen, assetsLoaded, showCharSelect, selectedChar]); 
 
   return (
-    <div className="relative w-full max-w-[1400px] h-full sm:max-h-[430px] lg:h-auto lg:aspect-[2/1] bg-slate-950 border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
+    <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] bg-slate-950 border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
       
       {assetsLoaded && showCharSelect && (
         <div className="absolute inset-0 z-50 w-full h-full">
@@ -1059,12 +1059,33 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           )}
         </div>
         
+        {/* Active Skills HUD Icons */}
         <div className="flex flex-wrap gap-1 max-w-[40%] justify-center pointer-events-none">
-          {activeSkills.map((sk) => (
-            <div key={sk.id} className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center bg-cyan-600 text-white rounded-full border border-cyan-400/40 animate-pulse text-sm sm:text-base shadow-md">
-              <span>{sk.icon}</span>
-            </div>
-          ))}
+          {activeSkills.map((sk) => {
+            // Check if the icon is an imported asset path or a regular string emoji
+            const isImageIcon = typeof sk.icon === 'string' && (sk.icon.includes('/') || sk.icon.includes('.'));
+            
+            return (
+              <div 
+                key={sk.id} 
+                className="w-6 h-6 sm:w-7 sm:h-7 border-2 bg-slate-950/20 rounded-lg flex items-center justify-center bg-cyan-600 text-white rounded-md overflow-hidden border border-cyan-400/40 animate-pulse text-sm sm:text-base shadow-md "
+              >
+                {isImageIcon ? (
+                  <img 
+                    src={`${sk.icon}`} 
+                    alt={sk.name} 
+                    className="w-full h-full object-contain select-none pointer-events-none" 
+                  />
+                ) : (
+                  <img 
+                    src="/assets/skill-icons/invisible.jpg" 
+                    alt="invisible" 
+                    className="w-full h-full object-contain select-none pointer-events-none" 
+                  />
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="flex gap-4 sm:gap-6">
@@ -1344,8 +1365,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
                   preloadGameplaySprites(selectedChar.id);
                   handleRestartRun();
                 }}
-                text="🚀 AGAIN!"
+                text="↺"
                 variant="primary"
+                outline={false}
               />
               <Button
                 onClick={() => {
@@ -1357,8 +1379,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
               />
               <Button
                 onClick={() => onMainMenu()}
-                text="Exit"
+                text="✖"
                 variant="secondary"
+                outline={false}
               />
             </div>
 

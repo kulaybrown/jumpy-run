@@ -203,7 +203,7 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
                         </div>
 
                         {/* Dynamic Stat Display Bars */}
-                        <div className={`w-full space-y-2 pt-1.5 border-t ${isSelected ? 'border-amber-50/40' : 'border-amber-900/10'}`}>
+                        <div className="w-full space-y-2 pt-1.5">
                           <div className="flex flex-row items-center justify-center gap-1">
                             {(char.startSkills || []).map((skillId) => {
                               const skillDef = SKILLS_REGISTRY.find((s) => s.id === skillId);
@@ -211,9 +211,10 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
                               return (
                                 <div
                                   key={skillId}
-                                  className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 shadow-[0_0_6px_rgba(168,85,247,0.3)] transition-all duration-200 ${isSelected ? 'bg-[#fff]' : 'bg-[#d5a37a]'}`}
+                                  className={`flex items-center gap-1.5 rounded-md overflow-hidden shadow-[0_0_6px_rgba(168,85,247,0.3)] transition-all duration-200 border ${isSelected ? 'border-[#fff]' : 'border-[#d5a37a]'}`}
                                 >
-                                  <span className="text-xs sm:text-sm">{skillDef.icon}</span>
+                                  {/* <span className="text-xs sm:text-sm">{skillDef.icon}</span> */}
+                                  <img src={skillDef.icon} alt={skillDef.name} className="w-5 h-5 sm:w-8 sm:h-8 object-contain" />
                                 </div>
                               );
                             })}
@@ -238,7 +239,7 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
 
           {/* 🎮 LOWER INTERACTIVE CONTROL HUD FOOTER */}
           <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 px-4 mt-5 z-10">
-            <Button onClick={onBack} text="Back" variant="secondary" />
+            <Button onClick={onBack} text="❮" variant="secondary" outline={false} />
             <Button onClick={onStartGame} text="START" variant="primary" />
           </div>
 
