@@ -1,7 +1,8 @@
 import React from 'react';
 
+export default function FakeAdOverlay({ adOverlay, adCountdown }) {
+  if (adOverlay !== 'playing') return null;
 
-function Ads() {
   return (
     <div className="absolute inset-0 bg-black z-[60] flex flex-col items-center justify-center p-4">
       <div className="absolute top-4 right-4 bg-white/10 text-white text-[10px] md:text-xs font-mono px-2.5 py-1 rounded-full">
