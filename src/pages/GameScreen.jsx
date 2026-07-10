@@ -5,7 +5,8 @@ import AdPromptOverlay from './AdPromptOverlay';
 import FakeAdOverlay from './FakeAdOverlay';
 import RunCompletedOverlay from './RunCompletedOverlay';
 import SkillSelectionOverlay from './SkillSelectionOverlay';
-import AuthModalOverlay from './AuthModalOverlay'; // Clean import injection setup
+import LeaderboardOverlay from '../components/LeaderboardOverlay'; // ✅ Imported separate leaderboard component
+import UserProfileModal from '../components/UserProfileModal'; // Added layout dependency reference mapping
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 import { ObstacleManager } from '../utils/ObstacleManager';
@@ -69,7 +70,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   // --- DATABASE & AUTHENTICATION MANAGEMENT STATES ---
   const [userId, setUserId] = useState(null);
   const [userEmail, setUserEmail] = useState(null);
-  const [showAuthForm, setShowAuthForm] = useState(false);
+  const [showAuthForm, setShowAuthForm] = useState(false); // Controls UserProfileModal open state visibility trigger anchor
   const [authMode, setAuthMode] = useState('login'); 
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -109,6 +110,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const [hasUsedAdRevive, setHasUsedAdRevive] = useState(false);
   const [shakeIntensity, setShakeIntensity] = useState(0);
   const [isGameOverScreen, setIsGameOverScreen] = useState(false);
+  const [calculatedRank, setCalculatedRank] = useState(null); // ✅ Added real-time cloud rank state tracking
   
   // Asset Pipelines Sync State
   const [assetsLoaded, setAssetsLoaded] = useState(false);
@@ -170,17 +172,40 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           const { data, error } = await supabase.auth.signInAnonymously();
           if (!error && data?.user) {
             setUserId(data.user.id);
-            await supabase.from('players').upsert({ id: data.user.id, name: 'Guest' }, { onConflict: 'id' });
+            
+            // Safe Check: Only build a placeholder if this anonymous guest slot doesn't exist yet
+            const { data: existingGuest } = await supabase
+              .from('players')
+              .select('name')
+              .eq('id', data.user.id)
+              .maybeSingle();
+
+            if (!existingGuest) {
+              await supabase.from('players').insert({ id: data.user.id, name: 'Guest' });
+            }
           }
         } else {
           setUserId(session.user.id);
           setUserEmail(session.user.email || null);
           
-          await supabase.from('players').upsert({ 
-            id: session.user.id, 
-            email: session.user.email || null,
-            name: session.user.email ? session.user.email.split('@')[0] : 'Runner'
-          }, { onConflict: 'id' });
+          // Safe Check: Fetch profile row data space before evaluating names
+          const { data: existingPlayer } = await supabase
+            .from('players')
+            .select('name')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (!existingPlayer) {
+            // Drop a clean insert fallback down if it is an absolute new account space
+            await supabase.from('players').insert({ 
+              id: session.user.id, 
+              email: session.user.email || null,
+              name: session.user.email ? session.user.email.split('@')[0] : 'Runner'
+            });
+          } else if (session.user.email) {
+            // Keep email configurations synced perfectly without overriding callsigns
+            await supabase.from('players').update({ email: session.user.email }).eq('id', session.user.id);
+          }
 
           const { data: topGlobalScores } = await supabase
             .from('players')
@@ -294,6 +319,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         const currentAttempts = profile ? (profile.attempts || 0) + 1 : 1;
         const highestScore = profile ? Math.max(profile.score || 0, finalScore) : finalScore;
 
+        // 1. Sync lifetime high score to the database profile card row
         const { error } = await supabase
           .from('players')
           .upsert({ 
@@ -304,7 +330,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           }, { onConflict: 'id' });
 
         if (error) throw error;
-        console.log(`Run #${currentAttempts} saved successfully!`);
+
+        // 2. 🏆 Calculate rank against EVERY single score in the database
+        // Removing the .neq filter means your own past scores will rightfully beat you
+        const { count } = await supabase
+          .from('players')
+          .select('*', { count: 'exact', head: true })
+          .gt('score', finalScore);
+          
+        setCalculatedRank((count || 0) + 1);
+        console.log(`Current Run Rank evaluated: ${(count || 0) + 1} (Score: ${finalScore})`);
       } catch (err) {
         console.error("Failed syncing metrics data to database:", err);
       }
@@ -1172,47 +1207,19 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] bg-slate-950 border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
       
       {assetsLoaded && showCharSelect && (
-        <>
-          <div className="absolute inset-0 z-50 w-full h-full">
-            <CharacterSelect 
-              onSelectCharacter={(char) => setSelectedChar(char)}
-              onBack={onMainMenu}
-              onStartGame={() => {
-                preloadGameplaySprites(selectedChar.id); 
-                handleRestartRun();
-                setShowCharSelect(false); 
-              }}
-            />
-          </div>
-
-          <div className="absolute top-4 left-4 z-55 max-w-xs select-none">
-            {userEmail ? (
-              <div className="p-2 bg-slate-900/90 border border-emerald-500/30 rounded-lg shadow-lg text-left backdrop-blur-xs flex flex-col gap-1">
-                <p className="text-[10px] text-emerald-400 font-medium font-mono">
-                  ☁️ Cloud Sync Active: <span className="underline">{userEmail}</span>
-                </p>
-                <button 
-                  onClick={handleLogout}
-                  className="text-[9px] text-slate-500 hover:text-rose-400 font-mono text-left transition-colors cursor-pointer"
-                >
-                  [ Sign Out ]
-                </button>
-              </div>
-            ) : (
-              <div className="p-2.5 bg-slate-900/90 border border-slate-700/50 rounded-xl shadow-lg text-left backdrop-blur-xs">
-                <p className="text-[10px] text-slate-400 mb-1.5 font-sans">
-                  Playing as Guest. Access profile:
-                </p>
-                <button 
-                  onClick={() => { setAuthMode('login'); setShowAuthForm(true); }}
-                  className="px-3 py-1 text-[10px] font-bold bg-indigo-600 hover:bg-indigo-500 text-white rounded-md transition-colors shadow-md cursor-pointer"
-                >
-                  Sign In / Link Account
-                </button>
-              </div>
-            )}
-          </div>
-        </>
+        <div className="absolute inset-0 z-50 w-full h-full">
+          <CharacterSelect 
+            userId={userId}
+            userEmail={userEmail}
+            onSelectCharacter={(char) => setSelectedChar(char)}
+            onBack={onMainMenu}
+            onStartGame={() => {
+              preloadGameplaySprites(selectedChar.id); 
+              handleRestartRun();
+              setShowCharSelect(false); 
+            }}
+          />
+        </div>
       )}
 
       {!assetsLoaded && (
@@ -1267,20 +1274,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         className="w-full object-contain bg-slate-950 touch-none cursor-pointer"
       />
 
-      {/* 🏅 LEADERBOARD OVERLAY */}
-      {highScores.length > 0 && !isGameOverScreen && (
-        <div className="absolute right-4 top-16 bg-slate-950/80 border border-white/10 backdrop-blur-md text-white p-2.5 rounded-xl pointer-events-none text-[10px] md:text-xs z-10 w-28 sm:w-32 md:w-36 shadow-xl">
-          <div className="text-amber-400 font-extrabold mb-1 tracking-wider border-b border-white/10 pb-0.5 text-right">🏆 TOP RUNS</div>
-          <ol className="list-decimal list-inside space-y-0.5 font-mono opacity-90 text-right">
-            {highScores.map((hs, i) => (
-              <li key={i} className={i === 0 ? "text-yellow-300 font-bold" : ""}>
-                <span className="text-slate-400 mr-1">#{i + 1}</span>
-                {hs}
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
+      {/* 🏅 LIVE CLOUD LEADERBOARD OVERLAY */}
+      {/* ✅ Replaced inline markup with the separate dynamic overlay component */}
+      <LeaderboardOverlay isGameOverScreen={isGameOverScreen} />
 
       {/* 🎯 SKILL CARD CHOOSE MODAL OVERLAY */}
       <SkillSelectionOverlay
@@ -1296,15 +1292,21 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         distance={distance}
         coins={coins}
         highScores={highScores}
+        rank={calculatedRank} // ✅ Passed down database rank prop mapping
         onRestart={() => {
+          setCalculatedRank(null); // ✅ Resets standing rank state calculation on fresh loop cycles
           preloadGameplaySprites(selectedChar.id);
           handleRestartRun();
         }}
         onSelectCharacter={() => {
+          setCalculatedRank(null);
           setIsGameOverScreen(false);
           setShowCharSelect(true);
         }}
-        onMainMenu={onMainMenu}
+        onMainMenu={() => {
+          setCalculatedRank(null);
+          onMainMenu();
+        }}
       />
 
       {/* REWARDED VIDEO ADS INTERCEPTION OVERLAY */}
@@ -1325,9 +1327,12 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         adCountdown={adCountdown} 
       />
       
-      {/* 🔐 SIGN IN / PROGRESS LINKING EXPANDED AUTH MODAL */}
-      <AuthModalOverlay
-        showAuthForm={showAuthForm}
+      {/* 🔐 UNIFIED RUNNER PROFILE & PROGRESS LINKING DASHBOARD */}
+      <UserProfileModal
+        isOpen={showAuthForm}
+        onClose={() => setShowAuthForm(false)}
+        userId={userId}
+        userEmail={userEmail}
         authMode={authMode}
         setAuthMode={setAuthMode}
         authEmail={authEmail}
@@ -1336,7 +1341,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         setAuthPassword={setAuthPassword}
         handleEmailAuth={handleEmailAuth}
         handleGoogleLogin={handleGoogleLogin}
-        setShowAuthForm={setShowAuthForm}
+        handleLogout={handleLogout}
       />
       
     </div>

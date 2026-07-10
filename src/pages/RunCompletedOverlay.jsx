@@ -7,6 +7,7 @@ export default function RunCompletedOverlay({
   distance,
   coins,
   highScores,
+  rank, // ✅ Added live global database rank prop mapping
   onRestart,
   onSelectCharacter,
   onMainMenu
@@ -87,19 +88,20 @@ export default function RunCompletedOverlay({
             </div>
 
             {/* 🏅 LEADERBOARD PLACEMENT BADGE */}
-            {highScores.length > 0 && (
-              <div className="flex items-center justify-center gap-2 sm:gap-3 text-amber-950 font-black tracking-wide text-xs sm:text-sm -mb-[20px] uppercase drop-shadow-[0_1px_0_rgba(255,255,255,0.4)]">
-                <img src="/assets/trophy.png" alt="Trophy" className="h-6 sm:h-8 object-contain select-none pointer-events-none image-render-pixelated" />
-                <span>Your rank:</span>
-                {(() => {
-                  const achievedRank = highScores.indexOf(score) + 1;
-                  if (achievedRank === 1) return <img src="/assets/rank-gold.png" alt="Gold" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
-                  if (achievedRank === 2) return <img src="/assets/rank-silver.png" alt="Silver" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
-                  if (achievedRank === 3) return <img src="/assets/rank-bronze.png" alt="Bronze" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
-                  return <span className="text-xs sm:text-sm font-black font-mono bg-slate-950/20 text-slate-800 border border-slate-700/30 px-2.5 py-0.5 rounded-md shadow-inner ml-1">#{achievedRank || '--'}</span>;
-                })()}
-              </div>
-            )}
+            {/* ✅ Swapped out internal index logic to listen to the direct database 'rank' prop */}
+            <div className="flex items-center justify-center gap-2 sm:gap-3 text-amber-950 font-black tracking-wide text-xs sm:text-sm -mb-[20px] uppercase drop-shadow-[0_1px_0_rgba(255,255,255,0.4)]">
+              <img src="/assets/trophy.png" alt="Trophy" className="h-6 sm:h-8 object-contain select-none pointer-events-none image-render-pixelated" />
+              <span>Your rank:</span>
+              {(() => {
+                if (!rank) {
+                  return <span className="text-xs sm:text-sm font-black font-mono bg-slate-950/20 text-slate-800 border border-slate-700/30 px-2.5 py-0.5 rounded-md shadow-inner ml-1 animate-pulse">Calculating...</span>;
+                }
+                if (rank === 1) return <img src="/assets/rank-gold.png" alt="Gold" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
+                if (rank === 2) return <img src="/assets/rank-silver.png" alt="Silver" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
+                if (rank === 3) return <img src="/assets/rank-bronze.png" alt="Bronze" className="h-8 sm:h-10 object-contain select-none pointer-events-none image-render-pixelated" />;
+                return <span className="text-xs sm:text-sm font-black font-mono bg-slate-950/20 text-slate-800 border border-slate-700/30 px-2.5 py-0.5 rounded-md shadow-inner ml-1">#{rank}</span>;
+              })()}
+            </div>
           </div>
           <img src="/assets/scoreboard-bot.png" alt="" className="w-full object-contain select-none pointer-events-none" />
         </div>
