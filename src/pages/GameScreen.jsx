@@ -110,7 +110,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const [hasUsedAdRevive, setHasUsedAdRevive] = useState(false);
   const [shakeIntensity, setShakeIntensity] = useState(0);
   const [isGameOverScreen, setIsGameOverScreen] = useState(false);
-  const [calculatedRank, setCalculatedRank] = useState(null); // ✅ Added real-time cloud rank state tracking
+  const [calculatedRank, setCalculatedRank] = useState(null); // Added real-time cloud rank state tracking
   
   // Asset Pipelines Sync State
   const [assetsLoaded, setAssetsLoaded] = useState(false);
@@ -138,6 +138,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const coinsArrayRef = useRef([]);
   const ufosRef = useRef([]);
   const particlesRef = useRef([]); 
+  const sonicWavesRef = useRef([]); // Dynamic visual tracking buffer for expanding rings
+  const sprintTrailsRef = useRef([]); // Tracking array buffer for rendering afterimage echoes
+  const explosionsRef = useRef([]); // Structural buffer for tracking tactical chain explosions
 
   // --- EXTERNAL SYSTEM MANAGERS AND GRAPHICS BUFFERS ---
   const bgLayersRef = useRef([]);
@@ -292,10 +295,12 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       obstaclesRef.current.length = 0;
       ufosRef.current.length = 0;
       
+      // ✅ Dynamic lookup from core skill registry definitions list to pull absolute icon assets path/emojis
+      const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
       activeSkillsRef.current['invisible'] = {
         expires: Date.now() + 3000,
-        name: 'Ghost Walk',
-        icon: '👻'
+        name: invSkillDef ? invSkillDef.name : 'Invisibility',
+        icon: invSkillDef ? invSkillDef.icon : '👻'
       };
       gamePausedRef.current = false;
     }
@@ -332,7 +337,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (error) throw error;
 
         // 2. 🏆 Calculate rank against EVERY single score in the database
-        // Removing the .neq filter means your own past scores will rightfully beat you
         const { count } = await supabase
           .from('players')
           .select('*', { count: 'exact', head: true })
@@ -469,15 +473,47 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     }
 
     if (skill.id === 'burst') {
-      triggerShake(12); 
+      triggerShake(18); 
+      
       obstacles.forEach(obs => {
-        spawnParticles(obs.x, obs.y, '#fbbf24', 6);
+        const cx = obs.x + obs.width / 2;
+        const cy = obs.y + obs.height / 2;
+        
+        spawnParticles(cx, cy, '#fbbf24', 8);  
+        spawnParticles(cx, cy, '#f97316', 6);  
+        spawnParticles(cx, cy, '#ffffff', 4);  
+        
         coinsArray.push({ x: obs.x, y: obs.y, radius: 8 });
+        
+        explosionsRef.current.push({
+          x: cx,
+          y: cy,
+          radius: 5,
+          maxRadius: 70,
+          alpha: 1.0,
+          color: '#fbbf24'
+        });
       });
       obstacles.length = 0;
+      
       ufosRef.current.forEach(ufo => {
-        spawnParticles(ufo.x, ufo.y, '#fbbf24', 12);
+        const cx = ufo.x + ufo.width / 2;
+        const cy = ufo.y + ufo.height / 2;
+        
+        spawnParticles(cx, cy, '#fbbf24', 14);
+        spawnParticles(cx, cy, '#ef4444', 10);
+        spawnParticles(cx, cy, '#ffffff', 6);
+        
         coinsArray.push({ x: ufo.x, y: ufo.y, radius: 10 });
+        
+        explosionsRef.current.push({
+          x: cx,
+          y: cy,
+          radius: 5,
+          maxRadius: 105,
+          alpha: 1.0,
+          color: '#ef4444'
+        });
       });
       ufosRef.current.length = 0;
 
@@ -576,6 +612,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     coinsArrayRef.current = [];
     ufosRef.current = [];
     particlesRef.current = [];
+    sonicWavesRef.current = []; 
+    sprintTrailsRef.current = []; 
+    explosionsRef.current = []; 
     shieldCountRef.current = 0;
     reviveCountRef.current = 0;
     flyEvadeTimerRef.current = 0;
@@ -872,6 +911,71 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         lastLoggedAction = runtimeAction;
       }
 
+      // --- CACHE SPEED POSITION LOGS FOR AFTERIMAGE ENGINE ---
+      if (isSkillActive('sprint')) {
+        sprintTrailsRef.current.push({
+          x: player.x,
+          y: player.y,
+          action: runtimeAction,
+          frameIndex: spriteFrameIndex
+        });
+        if (sprintTrailsRef.current.length > 5) {
+          sprintTrailsRef.current.shift();
+        }
+      } else {
+        sprintTrailsRef.current = [];
+      }
+
+      // ✨ --- CHARACTER AURA COMPONENT INJECTION --- ✨
+      ctx.save();
+      const characterHasActiveSkill = currentActive.length > 0;
+      const auraPulseFactor = 1 + Math.sin(now / 140) * 0.15;
+      const px = player.x + player.width / 2;
+      const py = player.y + player.height / 2;
+      const auraMaxRadius = player.width * 0.85;
+
+      let assignedAuraStyle = hexToRgba(player.color, 0.14); 
+      if (isSkillActive('sprint')) assignedAuraStyle = 'rgba(239, 68, 68, 0.45)'; 
+      else if (isSkillActive('fly') || isSkillActive('gravity')) assignedAuraStyle = 'rgba(56, 189, 248, 0.35)'; 
+      else if (isSkillActive('invisible')) assignedAuraStyle = 'rgba(148, 163, 184, 0.15)'; 
+      else if (characterHasActiveSkill) assignedAuraStyle = 'rgba(34, 211, 238, 0.35)'; 
+
+      const auraGradient = ctx.createRadialGradient(px, py, auraMaxRadius * 0.2, px, py, auraMaxRadius * auraPulseFactor);
+      auraGradient.addColorStop(0, assignedAuraStyle);
+      auraGradient.addColorStop(0.6, hexToRgba(player.color, 0.05));
+      auraGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+      ctx.beginPath();
+      ctx.arc(px, py, auraMaxRadius * auraPulseFactor, 0, Math.PI * 2);
+      ctx.fillStyle = auraGradient;
+      ctx.fill();
+
+      if (Math.random() < 0.3 || (isSkillActive('sprint') && Math.random() < 0.85)) {
+        const isSprinting = isSkillActive('sprint');
+        particlesRef.current.push({
+          x: player.x + (isSprinting ? 5 : Math.random() * player.width),
+          y: player.y + (isSprinting ? Math.random() * player.height : player.height - Math.random() * 10),
+          vx: isSprinting ? -7 - (Math.random() * 5) : -3 - (Math.random() * 2), 
+          vy: isSprinting ? (Math.random() - 0.5) * 4 : -1 - Math.random() * 2,  
+          radius: isSprinting ? Math.random() * 3.5 + 1.5 : Math.random() * 2 + 1,
+          alpha: 1.0,
+          color: isSprinting ? (Math.random() > 0.4 ? '#ef4444' : '#f97316') : (characterHasActiveSkill ? '#22d3ee' : player.color)
+        });
+      }
+
+      if (isSkillActive('sprint') && Math.random() < 0.4) {
+        particlesRef.current.push({
+          x: player.x + player.width + 10,
+          y: player.y + Math.random() * player.height,
+          vx: -13 - Math.random() * 7,
+          vy: 0,
+          radius: Math.random() * 1.5 + 0.5,
+          alpha: 0.65,
+          color: '#ffffff'
+        });
+      }
+      ctx.restore();
+
       if (shieldCountRef.current > 0) {
         ctx.save();
         const shieldRadius = 26 + (shieldCountRef.current * 4);
@@ -898,6 +1002,38 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.restore();
       }
 
+      // 🏃‍♂️ --- GHOST AFTERIMAGE RENDERING INTERCEPTOR --- 🏃‍♂️
+      if (isSkillActive('sprint') && sprintTrailsRef.current.length > 0) {
+        sprintTrailsRef.current.forEach((trail, idx) => {
+          ctx.save();
+          ctx.globalAlpha = 0.07 * (idx + 1);
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = '#ef4444'; 
+
+          const trailKey = `${spriteConfig.folder}_${trail.action}_${trail.frameIndex}`;
+          let trailTexture = gameplaySpriteCacheRef.current[trailKey];
+          
+          if (trail.action === 'fly') {
+            ctx.translate(trail.x + player.width / 2, trail.y + player.height / 2);
+            ctx.rotate((45 * Math.PI) / 180);
+            if (trailTexture && trailTexture.complete && trailTexture.naturalWidth !== 0) {
+              ctx.drawImage(trailTexture, -player.width / 2, -player.height / 2, player.width, player.height);
+            } else {
+              ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
+              ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
+            }
+          } else {
+            if (trailTexture && trailTexture.complete && trailTexture.naturalWidth !== 0) {
+              ctx.drawImage(trailTexture, trail.x, trail.y, player.width, player.height);
+            } else {
+              ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
+              ctx.fillRect(trail.x, trail.y, player.width, player.height);
+            }
+          }
+          ctx.restore();
+        });
+      }
+
       ctx.save();
       ctx.shadowBlur = 15; ctx.shadowOffsetY = 6; ctx.shadowOffsetX = 2;
       
@@ -917,25 +1053,114 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         gameplaySpriteCacheRef.current[textureKey] = loadedFrameTexture;
       }
 
-      if (loadedFrameTexture && loadedFrameTexture.complete && loadedFrameTexture.naturalWidth !== 0) {
-        ctx.drawImage(loadedFrameTexture, player.x, player.y, player.width, player.height);
+      if (runtimeAction === 'fly') {
+        ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+        ctx.rotate((45 * Math.PI) / 180);
+        
+        if (loadedFrameTexture && loadedFrameTexture.complete && loadedFrameTexture.naturalWidth !== 0) {
+          ctx.drawImage(loadedFrameTexture, -player.width / 2, -player.height / 2, player.width, player.height);
+        } else {
+          ctx.fillStyle = player.color;
+          ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
+        }
       } else {
-        ctx.fillStyle = player.color;
-        ctx.fillRect(player.x, player.y, player.width, player.height);
+        if (loadedFrameTexture && loadedFrameTexture.complete && loadedFrameTexture.naturalWidth !== 0) {
+          ctx.drawImage(loadedFrameTexture, player.x, player.y, player.width, player.height);
+        } else {
+          ctx.fillStyle = player.color;
+          ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
       }
       ctx.restore();
 
+      // 🔊 --- UPGRADED SONIC WAVE BLAST RENDERING ENGINE --- 🔊
       if (isSkillActive('sonic')) {
         sonicTimer++;
         if (sonicTimer > 180) { 
           triggerShake(5); 
-          ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 4; ctx.beginPath();
-          ctx.arc(player.x + player.width, player.y + player.height/2, 60, -Math.PI/2, Math.PI/2);
-          ctx.stroke();
+          
+          sonicWavesRef.current.push({
+            x: player.x + player.width - 10,
+            y: player.y + player.height / 2,
+            radius: 15,
+            maxRadius: 360,
+            speed: 14
+          });
+
           if (obstacles.length > 0) { spawnParticles(obstacles[0].x, obstacles[0].y, '#ef4444'); obstacles.splice(0, 1); }
           if (ufos.length > 0) { spawnParticles(ufos[0].x, ufos[0].y, '#38bdf8'); ufos.splice(0, 1); }
           sonicTimer = 0;
         }
+      }
+
+      for (let w = sonicWavesRef.current.length - 1; w >= 0; w--) {
+        const wave = sonicWavesRef.current[w];
+        wave.radius += wave.speed;
+        
+        const waveOpacity = Math.max(0, 1 - (wave.radius / wave.maxRadius));
+        if (waveOpacity <= 0 || wave.radius >= wave.maxRadius) {
+          sonicWavesRef.current.splice(w, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#22d3ee';
+        
+        ctx.strokeStyle = `rgba(34, 211, 238, ${waveOpacity})`;
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, wave.radius, -Math.PI / 2, Math.PI / 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = `rgba(14, 165, 233, ${waveOpacity * 0.4})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(wave.x, wave.y, Math.max(5, wave.radius - 25), -Math.PI / 2, Math.PI / 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // 💥 --- LIVE COIN BURST CHAIN EXPLOSION RENDERING ENGINE ---
+      for (let e = explosionsRef.current.length - 1; e >= 0; e--) {
+        const exp = explosionsRef.current[e];
+        exp.radius += 5.5; 
+        exp.alpha -= 0.045; 
+
+        if (exp.alpha <= 0 || exp.radius >= exp.maxRadius) {
+          explosionsRef.current.splice(e, 1);
+          continue;
+        }
+
+        ctx.save();
+        ctx.shadowBlur = 25;
+        ctx.shadowColor = exp.color || '#fbbf24';
+        ctx.globalCompositeOperation = 'screen'; 
+
+        ctx.strokeStyle = exp.color === '#ef4444' 
+          ? `rgba(239, 68, 68, ${exp.alpha})` 
+          : `rgba(251, 191, 36, ${exp.alpha})`;
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.strokeStyle = `rgba(255, 255, 255, ${exp.alpha * 0.7})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(exp.x, exp.y, Math.max(2, exp.radius * 0.65), 0, Math.PI * 2);
+        ctx.stroke();
+
+        const fillGradient = ctx.createRadialGradient(exp.x, exp.y, 2, exp.x, exp.y, exp.radius);
+        fillGradient.addColorStop(0, `rgba(255, 255, 255, ${exp.alpha * 0.8})`);
+        fillGradient.addColorStop(0.3, exp.color === '#ef4444' ? `rgba(220, 38, 38, ${exp.alpha * 0.4})` : `rgba(249, 115, 22, ${exp.alpha * 0.4})`);
+        fillGradient.addColorStop(1, 'rgba(0,0,0,0)');
+        
+        ctx.beginPath();
+        ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
+        ctx.fillStyle = fillGradient;
+        ctx.fill();
+        ctx.restore();
       }
 
       if (Math.floor(localDistance) >= nextUfoMilestone) {
@@ -977,9 +1202,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           
           triggerShake(8); 
           if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(ufo.x, ufo.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); ufos.splice(i, 1); continue; }
+          
+          // ✅ Revive triggered via Heart on UFO hit - Now pulling icon and name properties dynamically from the skill registry definition block
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); ufos.length = 0; obstacles.length = 0;
-            activeSkillsRef.current['invisible'] = { expires: Date.now() + 3000, name: 'Ghost Walk', icon: '👻' };
+            const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
+            activeSkillsRef.current['invisible'] = { 
+              expires: Date.now() + 3000, 
+              name: invSkillDef ? invSkillDef.name : 'Invisibility', 
+              icon: invSkillDef ? invSkillDef.icon : '👻' 
+            };
             continue;
           }
 
@@ -1095,9 +1327,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           
           triggerShake(8); 
           if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(obs.x, obs.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); obstacles.splice(i, 1); continue; }
+          
+          // ✅ Revive triggered via Heart on Obstacle hit - Now pulling icon and name properties dynamically from the skill registry definition block
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); obstacles.length = 0; ufos.length = 0;
-            activeSkillsRef.current['invisible'] = { expires: Date.now() + 3000, name: 'Ghost Walk', icon: '👻' };
+            const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
+            activeSkillsRef.current['invisible'] = { 
+              expires: Date.now() + 3000, 
+              name: invSkillDef ? invSkillDef.name : 'Invisibility', 
+              icon: invSkillDef ? invSkillDef.icon : '👻' 
+            };
             continue;
           }
 
@@ -1275,7 +1514,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       />
 
       {/* 🏅 LIVE CLOUD LEADERBOARD OVERLAY */}
-      {/* ✅ Replaced inline markup with the separate dynamic overlay component */}
       <LeaderboardOverlay isGameOverScreen={isGameOverScreen} />
 
       {/* 🎯 SKILL CARD CHOOSE MODAL OVERLAY */}
@@ -1292,9 +1530,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         distance={distance}
         coins={coins}
         highScores={highScores}
-        rank={calculatedRank} // ✅ Passed down database rank prop mapping
+        rank={calculatedRank} 
         onRestart={() => {
-          setCalculatedRank(null); // ✅ Resets standing rank state calculation on fresh loop cycles
+          setCalculatedRank(null); 
           preloadGameplaySprites(selectedChar.id);
           handleRestartRun();
         }}
