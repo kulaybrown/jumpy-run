@@ -1247,7 +1247,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
             return (
               <div 
                 key={sk.id} 
-                className="w-6 h-6 sm:w-7 sm:h-7 border-2 bg-slate-950/20 rounded-lg flex items-center justify-center bg-cyan-600 text-white border border-cyan-400/40 animate-pulse text-sm sm:text-base shadow-md p-0.5"
+                className="w-6 h-6 sm:w-7 sm:h-7 border-1 bg-slate-950/20 flex items-center justify-center bg-cyan-600 text-white border border-cyan-400/40 animate-pulse text-sm sm:text-base shadow-md"
               >
                 {isImageIcon ? (
                   <img src={`${sk.icon}`} alt={sk.name} className="w-full h-full object-contain select-none pointer-events-none" />

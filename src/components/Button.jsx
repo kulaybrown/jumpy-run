@@ -5,7 +5,7 @@ const VARIANT_GRADIENTS = {
   secondary: 'bg-[linear-gradient(90deg,_#E63946_0%,_#ED6C53_25%,_#F4A261_50%,_#ED6C53_75%,_#E63946_100%)]',
 };
 
-export default function Button({ onClick, text="START TO PLAY", variant="primary", outline=true }) {
+export default function Button({ onClick, text="START TO PLAY", variant="primary", outline=true, fontSize="text-2xl md:text-2xl lg:text-5xl" }) {
   const gradient = VARIANT_GRADIENTS[variant] || VARIANT_GRADIENTS.primary;
   const outlineClass = outline ? '[-webkit-text-stroke:2px_#000000] lg:[-webkit-text-stroke:3px_#000000]' : '';
   return (
@@ -20,7 +20,7 @@ export default function Button({ onClick, text="START TO PLAY", variant="primary
       `}>
       <div 
         className={`
-          relative rounded-[10px] border border-2 border-white z-20 w-auto p-1 lg:p-2.5 px-5 font-bungee text-2xl md:text-2xl lg:text-5xl text-shadow-lg/30
+          relative rounded-[10px] border border-2 border-white z-20 w-auto p-1 lg:p-2.5 px-5 font-bungee ${fontSize} text-shadow-lg/30
           ${outlineClass}
           ${gradient}
 

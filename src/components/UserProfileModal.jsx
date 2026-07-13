@@ -214,17 +214,17 @@ export default function UserProfileModal({ isOpen, onClose }) {
 
   return (
     <div className="absolute inset-0 bg-black/85 z-[100] flex items-center justify-center p-4 backdrop-blur-xs font-mono max-h-full overflow-y-auto">
-      <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl w-full max-w-sm shadow-2xl space-y-4 text-left relative max-h-[95vh] overflow-y-auto scrollbar-none">
+      <div className="bg-[linear-gradient(0deg,rgba(209,143,105,1)_0%,rgba(240,210,166,1)_100%)] border border-2 border-white p-5 rounded-2xl w-full max-w-sm shadow-2xl space-y-4 text-left relative max-h-[95vh] overflow-y-auto scrollbar-none">
         
-        <button onClick={onClose} className="absolute top-4 right-4 text-slate-400 hover:text-white font-bold cursor-pointer text-xs">✖</button>
+        <button onClick={onClose} className="absolute top-4 right-4 font-bold cursor-pointer text-lg">✖</button>
 
         <div>
-          <h3 className="text-sm font-bold text-white uppercase tracking-wide">🏆 Runner Dashboard</h3>
-          <p className="text-[10px] text-slate-400 font-sans">Manage your metadata metrics and account authentication sync states.</p>
+          <h3 className="text-lg font-bungee font-black text-white [-webkit-text-stroke:1px_#000000] uppercase tracking-wide">🏆 Runner Dashboard</h3>
+          <p className="text-[10px] text-black font-sans">Manage your metadata metrics and account authentication sync states.</p>
         </div>
 
         <div className="bg-slate-950 p-2 border border-slate-800 rounded-xl flex items-center justify-between">
-          <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Personal Best:</span>
+          <span className="text-[10px] uppercase font-bold text-white tracking-wider">Personal Best:</span>
           <span className="text-xs text-amber-400 font-black tracking-wide">⭐ {highScore} pts</span>
         </div>
 
@@ -232,22 +232,22 @@ export default function UserProfileModal({ isOpen, onClose }) {
         <form onSubmit={handleUpdateProfile} className="space-y-3 border-b border-slate-800/60 pb-4">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1 tracking-wider">Callsign</label>
+              <label className="block text-[9px] uppercase font-bold text-black mb-1 tracking-wider">Name</label>
               <input 
                 type="text" 
                 value={name} 
                 onChange={(e) => setName(e.target.value)} 
-                className="w-full bg-slate-950 border border-slate-800 text-xs p-2 rounded-lg text-white outline-none focus:border-indigo-500" 
+                className="w-full bg-white border border-slate-800 text-xs p-2 rounded-lg text-black outline-none focus:border-indigo-500" 
                 maxLength={15} 
                 required 
               />
             </div>
             <div>
-              <label className="block text-[9px] uppercase font-bold text-slate-500 mb-1 tracking-wider">Country</label>
+              <label className="block text-[9px] uppercase font-bold text-black mb-1 tracking-wider">Country</label>
               <select 
                 value={country} 
                 onChange={(e) => setCountry(e.target.value)} 
-                className="w-full bg-slate-950 border border-slate-800 text-xs p-2 rounded-lg text-white outline-none focus:border-indigo-500 cursor-pointer appearance-none"
+                className="w-full bg-white border border-slate-800 text-xs p-2 rounded-lg text-black outline-none focus:border-indigo-500 cursor-pointer appearance-none"
               >
                 <option value="" disabled className="text-slate-600">Select Region</option>
                 {COUNTRIES_LIST.map((c) => (
@@ -260,18 +260,18 @@ export default function UserProfileModal({ isOpen, onClose }) {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-bold text-emerald-400">{profileMessage}</span>
-            <button type="submit" disabled={isSaving} className="px-3 py-1.5 text-[11px] bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-lg transition-colors cursor-pointer">{isSaving ? 'Saving...' : 'Update Info'}</button>
+            <button type="submit" disabled={isSaving} className="px-3 py-1.5 text-[11px] bg-green-800 hover:bg-green-700 text-white font-bold rounded-lg transition-colors cursor-pointer">{isSaving ? 'Saving...' : 'Update Info'}</button>
           </div>
         </form>
 
         {/* Cloud Sync Layer Actions */}
         <div className="space-y-3 pt-1">
-          <label className="block text-[9px] uppercase font-bold text-slate-500 tracking-wider">Cloud Synchronization</label>
+          <label className="block text-[9px] uppercase font-bold text-black tracking-wider">Cloud Synchronization</label>
 
           {activeEmail ? (
-            <div className="p-3 bg-slate-950 border border-emerald-950/60 rounded-xl flex flex-col gap-2">
+            <div className="p-3 bg-[#795845] rounded-xl flex flex-col gap-2">
               <div className="flex items-center justify-between text-[11px]">
-                <span className="text-slate-400">Connected:</span>
+                <span className="text-white">Connected:</span>
                 <span className="text-emerald-400 font-bold underline truncate max-w-[180px]">{activeEmail}</span>
               </div>
               <button type="button" onClick={async () => { await supabase.auth.signOut(); onClose(); }} className="w-full py-1.5 text-[10px] bg-rose-950/40 text-rose-300 hover:bg-rose-900/50 border border-rose-900/40 font-bold rounded-lg transition-all cursor-pointer">Sign Out Account</button>
