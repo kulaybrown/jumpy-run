@@ -10,7 +10,8 @@ import UserProfileModal from '../components/UserProfileModal'; // Added layout d
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 import { ObstacleManager } from '../utils/ObstacleManager';
-import { supabase } from '../supabaseClient'; 
+import { supabase } from '../supabaseClient';
+import { playSFX, playBGM } from '../utils/SoundManager'; // ✅ Imported playBGM[cite: 5]
 
 // Plain static public paths definition
 const farCityImg = '/assets/far-bg.png';
@@ -150,6 +151,19 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
   // High-performance image sequence frame asset cache loader mapping context
   const gameplaySpriteCacheRef = useRef({});
+
+  // --- 📻 BACKGROUND MUSIC (BGM) STATE ENGINE ---
+  useEffect(() => {
+    if (!assetsLoaded) return;
+
+    if (showCharSelect) {
+      // 🎵 Play menu music continuously during character select and main menu phases[cite: 5]
+      playBGM('mainmenu-bgm');
+    } else {
+      // 🎮 Transition flawlessly into active run music when the loop starts[cite: 5]
+      playBGM('game-bgm');
+    }
+  }, [showCharSelect, assetsLoaded]);
 
   // --- INITIALIZATION AND DAILY CAP ROTATION ENGINE ---
   useEffect(() => {
@@ -295,7 +309,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       obstaclesRef.current.length = 0;
       ufosRef.current.length = 0;
       
-      // ✅ Dynamic lookup from core skill registry definitions list to pull absolute icon assets path/emojis
       const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
       activeSkillsRef.current['invisible'] = {
         expires: Date.now() + 3000,
@@ -324,7 +337,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         const currentAttempts = profile ? (profile.attempts || 0) + 1 : 1;
         const highestScore = profile ? Math.max(profile.score || 0, finalScore) : finalScore;
 
-        // 1. Sync lifetime high score to the database profile card row
         const { error } = await supabase
           .from('players')
           .upsert({ 
@@ -336,7 +348,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
         if (error) throw error;
 
-        // 2. 🏆 Calculate rank against EVERY single score in the database
         const { count } = await supabase
           .from('players')
           .select('*', { count: 'exact', head: true })
@@ -475,6 +486,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     if (skill.id === 'burst') {
       triggerShake(18); 
       
+      // 💥 TRIGGER SOUND EFFECT ON GETTING BURST SKILL[cite: 5]
+      playSFX('explosion');
+
       obstacles.forEach(obs => {
         const cx = obs.x + obs.width / 2;
         const cy = obs.y + obs.height / 2;
@@ -542,9 +556,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       return;
     }
 
-    let extraDuration = skill.duration || 0;
     const conflictGroup = ['gravity', 'fly', 'spring'];
-
     if (conflictGroup.includes(skill.id)) {
       conflictGroup.forEach(id => {
         if (id !== skill.id) {
@@ -554,10 +566,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     }
 
     if (activeSkillsRef.current[skill.id] && activeSkillsRef.current[skill.id].expires > now) {
-      activeSkillsRef.current[skill.id].expires += extraDuration;
+      activeSkillsRef.current[skill.id].expires += skill.duration || 0;
     } else {
       activeSkillsRef.current[skill.id] = {
-        expires: now + extraDuration,
+        expires: now + (skill.duration || 0),
         name: skill.name,
         icon: skill.icon
       };
@@ -911,7 +923,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         lastLoggedAction = runtimeAction;
       }
 
-      // --- CACHE SPEED POSITION LOGS FOR AFTERIMAGE ENGINE ---
       if (isSkillActive('sprint')) {
         sprintTrailsRef.current.push({
           x: player.x,
@@ -926,7 +937,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         sprintTrailsRef.current = [];
       }
 
-      // ✨ --- CHARACTER AURA COMPONENT INJECTION --- ✨
       ctx.save();
       const characterHasActiveSkill = currentActive.length > 0;
       const auraPulseFactor = 1 + Math.sin(now / 140) * 0.15;
@@ -1002,7 +1012,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.restore();
       }
 
-      // 🏃‍♂️ --- GHOST AFTERIMAGE RENDERING INTERCEPTOR --- 🏃‍♂️
       if (isSkillActive('sprint') && sprintTrailsRef.current.length > 0) {
         sprintTrailsRef.current.forEach((trail, idx) => {
           ctx.save();
@@ -1073,12 +1082,15 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       }
       ctx.restore();
 
-      // 🔊 --- UPGRADED SONIC WAVE BLAST RENDERING ENGINE --- 🔊
+      // 🔊 --- SONIC WAVE BLAST --- 🔊
       if (isSkillActive('sonic')) {
         sonicTimer++;
         if (sonicTimer > 180) { 
           triggerShake(5); 
           
+          // 🔊 TRIGGER NATIVE PULSE AUDIO[cite: 5]
+          playSFX('sonic-blast');
+
           sonicWavesRef.current.push({
             x: player.x + player.width - 10,
             y: player.y + player.height / 2,
@@ -1121,7 +1133,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.restore();
       }
 
-      // 💥 --- LIVE COIN BURST CHAIN EXPLOSION RENDERING ENGINE ---
       for (let e = explosionsRef.current.length - 1; e >= 0; e--) {
         const exp = explosionsRef.current[e];
         exp.radius += 5.5; 
@@ -1194,6 +1205,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           if (isSkillActive('invisible')) {
             continue; 
           }
+          
+          // 💥 TRIGGER PHYSICAL BUMP SFX ON UFO ENCOUNTER
+          playSFX('bump');
+
           if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(ufo.x, ufo.y, '#38bdf8'); 
             ufos.splice(i, 1); 
@@ -1203,7 +1218,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           triggerShake(8); 
           if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(ufo.x, ufo.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); ufos.splice(i, 1); continue; }
           
-          // ✅ Revive triggered via Heart on UFO hit - Now pulling icon and name properties dynamically from the skill registry definition block
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); ufos.length = 0; obstacles.length = 0;
             const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
@@ -1319,6 +1333,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           if (isSkillActive('invisible')) {
             continue; 
           }
+          
+          // 💥 TRIGGER PHYSICAL BUMP SFX ON OBSTACLE IMPACT
+          playSFX('bump');
+
           if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(obs.x, obs.y, '#f59e0b', 6); 
             obstacles.splice(i, 1); 
@@ -1328,7 +1346,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           triggerShake(8); 
           if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(obs.x, obs.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); obstacles.splice(i, 1); continue; }
           
-          // ✅ Revive triggered via Heart on Obstacle hit - Now pulling icon and name properties dynamically from the skill registry definition block
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); obstacles.length = 0; ufos.length = 0;
             const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
@@ -1400,6 +1417,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           triggerShake(1.5); 
           spawnParticles(coin.x, coin.y, '#fbbf24', 5);
           spawnParticles(coin.x, coin.y, '#ffffff', 2);
+
+          // 🪙 TRIGGER COIN COLLECTION SFX[cite: 5]
+          playSFX('coin');
 
           setCoins(localCoins);
           coinsArray.splice(i, 1);

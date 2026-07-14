@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import Button from '../components/Button';
 import UserIconSetting from '../components/UserIconSetting';
 import UserProfileModal from '../components/UserProfileModal';
-import RankingIconSetting from '../components/RankingIconSetting'; // ✅ Imported
-import RankingBoardModal from '../components/RankingBoardModal';   // ✅ Imported
+import RankingIconSetting from '../components/RankingIconSetting'; 
+import RankingBoardModal from '../components/RankingBoardModal';   
+import SettingsIconSetting from '../components/SettingsIconSetting'; // ✅ Imported Settings Icon
+import SettingsModal from '../components/SettingsModal';             // ✅ Imported Settings Modal
 import { SKILLS_REGISTRY } from '../skillsData';
 import { supabase } from '../supabaseClient';
+import { playSFX } from '../utils/SoundManager'; 
 
 const CHARACTERS = [
   { id: 'jumpy_hero', name: 'JUMPY HERO', desc: 'The classic runner', sprite: '🏃‍♂️', folder: 'jumpy', idleFrames: 6, speed: 3, jump: 3, boost: null, startSkills: ['revive', 'shield'] },
@@ -45,7 +48,8 @@ function AnimatedIdleSprite({ folder, fallbackSprite, frameCount = 6 }) {
 export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame, onTriggerAuth }) {
   const [selectedId, setSelectedId] = useState('jumpy_hero');
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showRankingModal, setShowRankingModal] = useState(false); // ✅ Added state
+  const [showRankingModal, setShowRankingModal] = useState(false); 
+  const [showSettingsModal, setShowSettingsModal] = useState(false); // ✅ Added settings state hook
   const [liveEmail, setLiveEmail] = useState(null);
 
   useEffect(() => {
@@ -64,6 +68,7 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
 
   const handleSelect = (char) => {
     setSelectedId(char.id);
+    playSFX('select');
     if (onSelectCharacter) onSelectCharacter(char);
   };
 
@@ -77,7 +82,10 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
       />
       
       {/* 🏆 LEADERBOARD RANKING TRIGGER */}
-      <RankingIconSetting onClick={() => setShowRankingModal(true)} /> {/* ✅ Added */}
+      <RankingIconSetting onClick={() => setShowRankingModal(true)} />
+
+      {/* ⚙️ GAME CONFIGURATION SETTINGS TRIGGER */}
+      <SettingsIconSetting onClick={() => setShowSettingsModal(true)} /> {/* ✅ Added */}
 
       <UserProfileModal
         isOpen={showProfileModal}
@@ -89,6 +97,12 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
       <RankingBoardModal 
         isOpen={showRankingModal} 
         onClose={() => setShowRankingModal(false)} 
+      />
+
+      {/* ⚙️ GAME CONFIGURATION SETTINGS MODAL OVERLAY */}
+      <SettingsModal 
+        isOpen={showSettingsModal} 
+        onClose={() => setShowSettingsModal(false)} 
       /> {/* ✅ Added */}
 
       {/* 🖼️ PIXEL ART BORDER FRAME */}

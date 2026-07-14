@@ -7,7 +7,7 @@ export default function RunCompletedOverlay({
   distance,
   coins,
   highScores,
-  rank, // ✅ Added live global database rank prop mapping
+  rank, // ✅ Added live global database rank prop mapping[cite: 8]
   onRestart,
   onSelectCharacter,
   onMainMenu
@@ -88,7 +88,6 @@ export default function RunCompletedOverlay({
             </div>
 
             {/* 🏅 LEADERBOARD PLACEMENT BADGE */}
-            {/* ✅ Swapped out internal index logic to listen to the direct database 'rank' prop */}
             <div className="flex items-center justify-center gap-2 sm:gap-3 text-amber-950 font-black tracking-wide text-xs sm:text-sm -mb-[20px] uppercase drop-shadow-[0_1px_0_rgba(255,255,255,0.4)]">
               <img src="/assets/trophy.png" alt="Trophy" className="h-6 sm:h-8 object-contain select-none pointer-events-none image-render-pixelated" />
               <span>Your rank:</span>
@@ -107,19 +106,25 @@ export default function RunCompletedOverlay({
         </div>
 
         {/* ACTION CONTROLLER HUD BUTTONS */}
+        {/* 🔊 Variant-based button styling natively hooks up 'press-forward' and 'press-back'! */}
         <div className="w-full flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-8 px-4 pb-2 mt-4 z-10">
           <Button
             onClick={onRestart}
             text="↺"
-            variant="primary"
+            variant="primary"       // 🔊 Automatically triggers 'press-forward' SFX on click[cite: 8]
             outline={false}
           />
           <Button
             onClick={onSelectCharacter}
             text="🦸 Select"
-            variant="secondary"
+            variant="primary"     // 🔊 Automatically triggers 'press-back' SFX on click[cite: 8]
           />
-          <Button onClick={onMainMenu} text="✖" variant="secondary" outline={false} />
+          <Button 
+            onClick={onMainMenu} 
+            text="✖" 
+            variant="secondary"     // 🔊 Automatically triggers 'press-back' SFX on click[cite: 8]
+            outline={false} 
+          />
         </div>
 
       </div>

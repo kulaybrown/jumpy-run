@@ -2,6 +2,8 @@
  * BackgroundEffects Class
  * Manages the data, logic, and rendering for background aesthetic events.
  */
+import { playSFX } from './SoundManager'; // 🎵 Import centralized sound effects player
+
 export class BackgroundEffects {
   constructor(canvasWidth, groundY) {
     this.canvasWidth = canvasWidth;
@@ -89,6 +91,9 @@ export class BackgroundEffects {
     // --- EVENT A: SUPERMAN LOGIC ---
     if (currentDistance >= 500 && this.superman.state === 'WAITING') {
       this.superman.state = 'FLYING';
+      
+      // 🦸‍♂️ Trigger Superman fly-by theme sound
+      playSFX('superman');
     }
 
     if (this.superman.state === 'FLYING') {
@@ -130,6 +135,9 @@ export class BackgroundEffects {
     if (currentDistance > 0 && currentDistance % 800 === 0 && this.ufo.state === 'HIDDEN') {
       this.ufo.state = 'ENTERING';
       this.ufo.x = -250;
+
+      // 🛸 Trigger UFO scanner sound
+      playSFX('ufo');
     }
 
     if (this.ufo.state !== 'HIDDEN') {
@@ -168,7 +176,7 @@ export class BackgroundEffects {
         
         const emitterX = this.ufo.x + this.ufo.width / 2;
         
-        // ✅ FIX: Anchor point tucked directly inside the saucer core (75% height) to mask asset empty space transparency
+        // Anchor point tucked directly inside the saucer core (75% height) to mask asset empty space transparency
         const beamAnchorY = this.ufo.y + (currentUfoHeight * 0.75); 
         
         const beamGlow = ctx.createLinearGradient(

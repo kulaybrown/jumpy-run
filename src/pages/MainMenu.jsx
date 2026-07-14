@@ -2,8 +2,10 @@ import React, { useState, useEffect } from 'react';
 import Button from '../components/Button';
 import UserIconSetting from '../components/UserIconSetting';
 import UserProfileModal from '../components/UserProfileModal';
-import RankingIconSetting from '../components/RankingIconSetting'; // ✅ Imported
-import RankingBoardModal from '../components/RankingBoardModal';   // ✅ Imported
+import RankingIconSetting from '../components/RankingIconSetting'; 
+import RankingBoardModal from '../components/RankingBoardModal';   
+import SettingsIconSetting from '../components/SettingsIconSetting'; // ✅ Imported Settings Icon
+import SettingsModal from '../components/SettingsModal';             // ✅ Imported Settings Modal
 import { supabase } from '../supabaseClient';
 
 function FrameAnimation({ basePath, frameCount = 4, frameDuration = 150, extension = 'png', alt = '', className = '' }) {
@@ -33,7 +35,8 @@ function BounceShadow({ duration = '1000ms', className = '' }) {
 
 export default function MainMenu({ onStartGame, onTriggerAuth }) {
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showRankingModal, setShowRankingModal] = useState(false); // ✅ Added state
+  const [showRankingModal, setShowRankingModal] = useState(false); 
+  const [showSettingsModal, setShowSettingsModal] = useState(false); // ✅ Added settings state hook
   const [liveEmail, setLiveEmail] = useState(null);
 
   useEffect(() => {
@@ -64,7 +67,10 @@ export default function MainMenu({ onStartGame, onTriggerAuth }) {
       />
       
       {/* 🏆 LEADERBOARD RANKING TRIGGER */}
-      <RankingIconSetting onClick={() => setShowRankingModal(true)} /> {/* ✅ Added */}
+      <RankingIconSetting onClick={() => setShowRankingModal(true)} />
+
+      {/* ⚙️ GAME CONFIGURATION SETTINGS TRIGGER */}
+      <SettingsIconSetting onClick={() => setShowSettingsModal(true)} /> {/* ✅ Added */}
 
       <UserProfileModal
         isOpen={showProfileModal}
@@ -76,6 +82,12 @@ export default function MainMenu({ onStartGame, onTriggerAuth }) {
       <RankingBoardModal 
         isOpen={showRankingModal} 
         onClose={() => setShowRankingModal(false)} 
+      />
+
+      {/* ⚙️ GAME CONFIGURATION SETTINGS MODAL OVERLAY */}
+      <SettingsModal 
+        isOpen={showSettingsModal} 
+        onClose={() => setShowSettingsModal(false)} 
       /> {/* ✅ Added */}
 
       {/* 🖼️ PIXEL ART BORDER FRAME */}
