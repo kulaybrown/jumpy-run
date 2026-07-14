@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 export default function SettingsModal({ isOpen, onClose }) {
   // Game Tuning Configuration States
+  const [soundMaster, setSoundMaster] = useState('enabled'); // ✅ Added Master Sound Toggle State
   const [bgmVolume, setBgmVolume] = useState(80);
   const [sfxVolume, setSfxVolume] = useState(80);
   const [screenShake, setScreenShake] = useState('enabled');
@@ -14,11 +15,13 @@ export default function SettingsModal({ isOpen, onClose }) {
   useEffect(() => {
     if (!isOpen) return;
 
+    const storedMaster = localStorage.getItem('game_setting_sound_master');
     const storedBgm = localStorage.getItem('game_setting_bgm_vol');
     const storedSfx = localStorage.getItem('game_setting_sfx_vol');
     const storedShake = localStorage.getItem('game_setting_screen_shake');
     const storedParticles = localStorage.getItem('game_setting_particles');
 
+    if (storedMaster !== null) setSoundMaster(storedMaster);
     if (storedBgm !== null) setBgmVolume(Number(storedBgm));
     if (storedSfx !== null) setSfxVolume(Number(storedSfx));
     if (storedShake !== null) setScreenShake(storedShake);
@@ -34,6 +37,7 @@ export default function SettingsModal({ isOpen, onClose }) {
 
     try {
       // Push modern attributes directly down into regional local cache structures
+      localStorage.setItem('game_setting_sound_master', soundMaster);
       localStorage.setItem('game_setting_bgm_vol', bgmVolume.toString());
       localStorage.setItem('game_setting_sfx_vol', sfxVolume.toString());
       localStorage.setItem('game_setting_screen_shake', screenShake);
@@ -56,11 +60,14 @@ export default function SettingsModal({ isOpen, onClose }) {
   };
 
   const handleResetDefaults = () => {
+    setSoundMaster('enabled');
     setBgmVolume(80);
     setSfxVolume(80);
     setScreenShake('enabled');
     setParticleDensity('high');
   };
+
+  const isAudioMuted = soundMaster === 'disabled';
 
   return (
     <div className="absolute inset-0 bg-black/85 z-[100] flex items-center justify-center p-4 backdrop-blur-xs font-mono max-h-full overflow-y-auto">
@@ -77,36 +84,53 @@ export default function SettingsModal({ isOpen, onClose }) {
           
           {/* 🔊 SECTION 1: AUDIO CONFIGURATION CONTROL PANELS */}
           <div className="space-y-3 bg-slate-950 p-3 border border-slate-800 rounded-xl">
-            <label className="block text-[9px] uppercase font-bold text-white tracking-wider border-b border-slate-800 pb-1.5">Audio Channels</label>
-            
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Music Vol</span>
-                <span className="text-xs font-bold text-amber-400 font-mono">{bgmVolume}%</span>
-              </div>
-              <input 
-                type="range" 
-                min="0" 
-                max="100" 
-                value={bgmVolume}
-                onChange={(e) => setBgmVolume(Number(e.target.value))}
-                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-              />
+            <div className="flex items-center justify-between border-b border-slate-800 pb-1.5">
+              <label className="block text-[9px] uppercase font-bold text-white tracking-wider">Audio Channels</label>
+              
+              {/* ✅ Master Sound Switch Dropdown */}
+              <select
+                value={soundMaster}
+                onChange={(e) => setSoundMaster(e.target.value)}
+                className="bg-slate-900 border border-slate-700 text-[10px] px-1.5 py-0.5 rounded text-white outline-none font-bold cursor-pointer transition-colors focus:border-indigo-500"
+              >
+                <option value="enabled">🔊 SOUND ON</option>
+                <option value="disabled">🔇 MUTE ALL</option>
+              </select>
             </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] uppercase font-bold text-slate-400">Effects Vol</span>
-                <span className="text-xs font-bold text-amber-400 font-mono">{sfxVolume}%</span>
+            
+            {/* Dynamic visual opacity dimming layout feedback if the system is globally muted */}
+            <div className={`space-y-3 transition-opacity duration-200 ${isAudioMuted ? 'opacity-35 pointer-events-none' : 'opacity-100'}`}>
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Music Vol</span>
+                  <span className="text-xs font-bold text-amber-400 font-mono">{bgmVolume}%</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  value={bgmVolume}
+                  onChange={(e) => setBgmVolume(Number(e.target.value))}
+                  disabled={isAudioMuted}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
               </div>
-              <input 
-                type="range" 
-                min="0" 
-                max="100" 
-                value={sfxVolume}
-                onChange={(e) => setSfxVolume(Number(e.target.value))} // ✅ Fixed evaluation reference typo perfectly
-                className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-              />
+
+              <div>
+                <div className="flex justify-between items-center mb-1">
+                  <span className="text-[10px] uppercase font-bold text-slate-400">Effects Vol</span>
+                  <span className="text-xs font-bold text-amber-400 font-mono">{sfxVolume}%</span>
+                </div>
+                <input 
+                  type="range" 
+                  min="0" 
+                  max="100" 
+                  value={sfxVolume}
+                  onChange={(e) => setSfxVolume(Number(e.target.value))}
+                  disabled={isAudioMuted}
+                  className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                />
+              </div>
             </div>
           </div>
 

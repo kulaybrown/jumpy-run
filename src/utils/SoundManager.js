@@ -57,6 +57,10 @@ const getRuntimeVolume = (key, isBGM = false) => {
   const masterBase = VOLUME_CONFIG[key] || 0.5;
   if (typeof window === 'undefined') return masterBase;
 
+  // 🛑 MASTER SOUND SWITCH INTERCEPTOR
+  const masterSoundSwitch = localStorage.getItem('game_setting_sound_master');
+  if (masterSoundSwitch === 'disabled') return 0;
+
   const storageKey = isBGM ? 'game_setting_bgm_vol' : 'game_setting_sfx_vol';
   const savedVolumePercent = localStorage.getItem(storageKey);
 

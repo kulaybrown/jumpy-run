@@ -11,7 +11,7 @@ import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 import { ObstacleManager } from '../utils/ObstacleManager';
 import { supabase } from '../supabaseClient';
-import { playSFX, playBGM } from '../utils/SoundManager'; // ✅ Imported playBGM[cite: 5]
+import { playSFX, playBGM, stopBGM } from '../utils/SoundManager'; // ✅ Added stopBGM import
 
 // Plain static public paths definition
 const farCityImg = '/assets/far-bg.png';
@@ -157,13 +157,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     if (!assetsLoaded) return;
 
     if (showCharSelect) {
-      // 🎵 Play menu music continuously during character select and main menu phases[cite: 5]
+      // 🎵 Play menu music continuously during character select and main menu phases
       playBGM('mainmenu-bgm');
+    } else if (isGameOverScreen) {
+      // 💀 Turn off active run background music instantly when the player dies
+      stopBGM();
     } else {
-      // 🎮 Transition flawlessly into active run music when the loop starts[cite: 5]
+      // 🎮 Start run music automatically when a new run begins / restarts
       playBGM('game-bgm');
     }
-  }, [showCharSelect, assetsLoaded]);
+  }, [showCharSelect, assetsLoaded, isGameOverScreen]); // ✅ Hook dynamically reacts to death states seamlessly
 
   // --- INITIALIZATION AND DAILY CAP ROTATION ENGINE ---
   useEffect(() => {
@@ -486,7 +489,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     if (skill.id === 'burst') {
       triggerShake(18); 
       
-      // 💥 TRIGGER SOUND EFFECT ON GETTING BURST SKILL[cite: 5]
+      // 💥 TRIGGER SOUND EFFECT ON GETTING BURST SKILL
       playSFX('explosion');
 
       obstacles.forEach(obs => {
@@ -1088,7 +1091,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (sonicTimer > 180) { 
           triggerShake(5); 
           
-          // 🔊 TRIGGER NATIVE PULSE AUDIO[cite: 5]
+          // 🔊 TRIGGER NATIVE PULSE AUDIO
           playSFX('sonic-blast');
 
           sonicWavesRef.current.push({
@@ -1418,7 +1421,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           spawnParticles(coin.x, coin.y, '#fbbf24', 5);
           spawnParticles(coin.x, coin.y, '#ffffff', 2);
 
-          // 🪙 TRIGGER COIN COLLECTION SFX[cite: 5]
+          // 🪙 TRIGGER COIN COLLECTION SFX
           playSFX('coin');
 
           setCoins(localCoins);
