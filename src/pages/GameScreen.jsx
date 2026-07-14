@@ -117,6 +117,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [dailyAdsUsed, setDailyAdsUsed] = useState(0);
   const adRewardGrantedRef = useRef(false); 
+  const [adDebugStatus, setAdDebugStatus] = useState('checking');
 
   // Refs for loop management
   const gamePausedRef = useRef(false);
@@ -286,41 +287,25 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     });
   }, []);
 
-  // --- AD COUNTDOWN TIMER TICK EFFECT ---
   useEffect(() => {
-    let interval;
-    if (adOverlay === 'playing' && adCountdown > 0) {
-      interval = setInterval(() => {
-        setAdCountdown(prev => prev - 1);
-      }, 1000);
-    }
+    if (!import.meta.env.DEV) return;
+
+    const getAdRuntimeStatus = () => {
+      if (typeof window === 'undefined') return 'sdk-missing';
+      const adBreakFn = window.adBreak;
+
+      if (typeof adBreakFn !== 'function') return 'sdk-missing';
+      return 'google-hook-ready';
+    };
+
+    const syncStatus = () => {
+      setAdDebugStatus(getAdRuntimeStatus());
+    };
+
+    syncStatus();
+    const interval = setInterval(syncStatus, 1500);
     return () => clearInterval(interval);
-  }, [adOverlay, adCountdown]);
-
-  // --- CLEAN AD REWARD DELIVERY EFFECT ---
-  useEffect(() => {
-    if (adOverlay === 'playing' && adCountdown === 0 && !adRewardGrantedRef.current) {
-      adRewardGrantedRef.current = true; 
-
-      const internalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10) + 1;
-      localStorage.setItem('runner_daily_ads_count', internalCount.toString());
-      
-      setDailyAdsUsed(internalCount);
-      setHasUsedAdRevive(true);
-      setAdOverlay(null);
-
-      obstaclesRef.current.length = 0;
-      ufosRef.current.length = 0;
-      
-      const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
-      activeSkillsRef.current['invisible'] = {
-        expires: Date.now() + 3000,
-        name: invSkillDef ? invSkillDef.name : 'Invisibility',
-        icon: invSkillDef ? invSkillDef.icon : '👻'
-      };
-      gamePausedRef.current = false;
-    }
-  }, [adCountdown, adOverlay]);
+  }, []);
 
   // --- FOOLPROOF DIRECT STORAGE SYNC ENGINE ---
   const saveHighScore = async (finalScore) => {
@@ -583,14 +568,117 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   };
 
   const watchRewardedAd = () => {
-    adRewardGrantedRef.current = false;
-    setShowAdPrompt(false);
-    setAdOverlay('loading');
+    const adBreakFn = window.adBreak;
+    if (typeof adBreakFn !== 'function') {
+      alert('Rewarded ads are not ready yet. Please try again in a few seconds.');
+      return;
+    }
 
-    setTimeout(() => {
-      setAdOverlay('playing');
-      setAdCountdown(5);
-    }, 1000);
+    let callbackReceived = false;
+    let resolved = false;
+
+    const requestTimeout = window.setTimeout(() => {
+      if (resolved || callbackReceived) return;
+      resolved = true;
+      setAdOverlay(null);
+      setShowAdPrompt(true);
+      console.warn('Rewarded ad request timed out before Google returned callbacks.');
+      alert('No ad is available right now. Please try again shortly.');
+    }, 4000);
+
+    const markCallbackReceived = () => {
+      callbackReceived = true;
+      window.clearTimeout(requestTimeout);
+    };
+
+    adRewardGrantedRef.current = false;
+
+    // Call the official Google Ad Placement trigger flow
+    try {
+      adBreakFn({
+      type: 'reward',          // Tells Google this is an optional rewarded layout slot
+      name: 'player_revive',    // Label used to isolate reporting in your dashboard
+      
+      beforeAd: () => {
+        markCallbackReceived();
+        setShowAdPrompt(false);
+        setAdOverlay('real-ad');
+        gamePausedRef.current = true;
+        stopBGM();
+      },
+      
+      beforeReward: (showAdFn) => {
+        markCallbackReceived();
+        // Google calls this hook if a valid ad asset is ready for the player
+        showAdFn(); 
+      },
+      
+      adDismissed: () => {
+        markCallbackReceived();
+        if (resolved) return;
+        resolved = true;
+        setAdOverlay(null);
+        // Player skipped out or clicked the "X" button before the commercial finished
+        console.log("❌ Ad skipped by player. No tokens granted.");
+        handleSkipAdRevive();
+      },
+      
+      adViewed: () => {
+        markCallbackReceived();
+        if (resolved) return;
+        resolved = true;
+        // Player successfully watched the ad to completion! 🎉
+        console.log("🏅 Ad watched completely! Executing reward sweep.");
+        handleAdRewardSuccess();
+      },
+      
+      adBreakDone: (placementInfo) => {
+        markCallbackReceived();
+        if (resolved) return;
+        resolved = true;
+        setAdOverlay(null);
+        const breakStatus = placementInfo?.breakStatus || placementInfo?.type || 'unknown';
+        console.warn(`Rewarded ad did not complete. Status: ${breakStatus}`);
+        gamePausedRef.current = true;
+        setShowAdPrompt(true);
+        // Triggers at the absolute end of the loop cycle regardless of success/failure
+        console.log("🎬 Google AdBreak execution lifecycle closed.", placementInfo);
+      }
+      });
+    } catch (err) {
+      window.clearTimeout(requestTimeout);
+      setAdOverlay(null);
+      setShowAdPrompt(true);
+      console.error('Rewarded ad invocation failed:', err);
+      alert('Unable to request a rewarded ad right now. Please try again shortly.');
+    }
+  };
+
+  // Extract your successful reward logic into a separate utility function to keep things tidy
+  const handleAdRewardSuccess = () => {
+    adRewardGrantedRef.current = true; 
+    
+    // Save state increments locally
+    const internalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10) + 1;
+    localStorage.setItem('runner_daily_ads_count', internalCount.toString());
+    
+    setDailyAdsUsed(internalCount);
+    setHasUsedAdRevive(true);
+    setShowAdPrompt(false);
+    setAdOverlay(null);
+
+    // Wipe screen clutter and grant player their ghost status run
+    obstaclesRef.current.length = 0;
+    ufosRef.current.length = 0;
+    
+    const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
+    activeSkillsRef.current['invisible'] = {
+      expires: Date.now() + 3000,
+      name: invSkillDef ? invSkillDef.name : 'Invisibility',
+      icon: invSkillDef ? invSkillDef.icon : '👻'
+    };
+    
+    gamePausedRef.current = false;
   };
 
   const handleSkipAdRevive = () => {
@@ -663,6 +751,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     setReviveCount(reviveCountRef.current);
     setActiveSkills(Object.entries(activeSkillsRef.current).map(([id, v]) => ({ id, name: v.name, icon: v.icon })));
     setHasUsedAdRevive(false);
+    adRewardGrantedRef.current = false;
+    setAdCountdown(5);
+    setAdOverlay(null);
     setIsGameOverScreen(false);
     setShowAdPrompt(false);
     gamePausedRef.current = false;
@@ -1587,6 +1678,12 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         adOverlay={adOverlay} 
         adCountdown={adCountdown} 
       />
+
+      {import.meta.env.DEV && (
+        <div className="absolute top-2 right-2 z-[70] bg-black/70 text-white text-[10px] font-mono px-2 py-1 rounded border border-white/20 pointer-events-none">
+          Ad revive: {adDebugStatus === 'google-hook-ready' ? 'Google Hook Ready' : adDebugStatus === 'checking' ? 'Checking' : 'SDK Missing'}
+        </div>
+      )}
       
       {/* 🔐 UNIFIED RUNNER PROFILE & PROGRESS LINKING DASHBOARD */}
       <UserProfileModal

@@ -27,7 +27,7 @@ export default function Button({ onClick, text="START TO PLAY", variant="primary
     <button 
       onClick={handleButtonClick}
       className={`
-        relative rounded-[13px] z-20 w-auto pb-1 border-2 border-black
+        relative rounded-[13px] z-20 w-auto pb-1 border-2 border-black cursor-pointer
         ${gradient}
         
         before:content-[''] before:absolute before:inset-0 before:rounded-xl before:bg-[#000] before:opacity-50

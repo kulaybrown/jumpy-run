@@ -9,6 +9,32 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@300..700&display=swap" rel="stylesheet">
     <title>Vite + React</title>
+
+    <!-- You can use a placeholder ca-pub string for local testing -->
+    <script async 
+      src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9125531137074419" 
+      crossorigin="anonymous">
+    </script>
+
+    <script>
+      window.adsbygoogle = window.adsbygoogle || [];
+      window.adConfig = window.adConfig || function(o) { window.adsbygoogle.push(o); };
+      window.adBreak = window.adBreak || function(o) { window.adsbygoogle.push(o); };
+
+      const initAdConfig = () => {
+        window.adConfig({
+          preloadAdBreaks: 'on',
+          // Test mode helps validate integration before full serving is available.
+          'data-adbreak-test': 'on'
+        });
+      };
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAdConfig, { once: true });
+      } else {
+        initAdConfig();
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
