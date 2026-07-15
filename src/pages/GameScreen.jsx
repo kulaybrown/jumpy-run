@@ -5,13 +5,15 @@ import AdPromptOverlay from './AdPromptOverlay';
 import FakeAdOverlay from './FakeAdOverlay';
 import RunCompletedOverlay from './RunCompletedOverlay';
 import SkillSelectionOverlay from './SkillSelectionOverlay';
-import LeaderboardOverlay from '../components/LeaderboardOverlay'; // ✅ Imported separate leaderboard component
-import UserProfileModal from '../components/UserProfileModal'; // Added layout dependency reference mapping
+import LeaderboardOverlay from '../components/LeaderboardOverlay'; 
+import UserProfileModal from '../components/UserProfileModal'; 
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 import { ObstacleManager } from '../utils/ObstacleManager';
+import { showRewardedAd } from '../utils/AdService';
 import { supabase } from '../supabaseClient';
-import { playSFX, playBGM, stopBGM } from '../utils/SoundManager'; // ✅ Added stopBGM import
+import { playSFX, playBGM, stopBGM } from '../utils/SoundManager'; 
+import { Capacitor } from '@capacitor/core';
 
 // Plain static public paths definition
 const farCityImg = '/assets/far-bg.png';
@@ -21,6 +23,7 @@ const nearCityImg = '/assets/near-bg.png';
 // --- CONFIGURATION TUNING ---
 const MAX_DAILY_ADS = 3;
 const BACKGROUND_ZOOM = 1.1; 
+const HUD_UPDATE_INTERVAL = 100;
 
 // --- ANIMATION TRACKING ASSET FOLDER ROUTER ---
 const SPRITE_CONFIG_MAP = {
@@ -112,12 +115,12 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const [shakeIntensity, setShakeIntensity] = useState(0);
   const [isGameOverScreen, setIsGameOverScreen] = useState(false);
   const [calculatedRank, setCalculatedRank] = useState(null); // Added real-time cloud rank state tracking
+  const [adDebugStatus, setAdDebugStatus] = useState('checking');
   
   // Asset Pipelines Sync State
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [dailyAdsUsed, setDailyAdsUsed] = useState(0);
   const adRewardGrantedRef = useRef(false); 
-  const [adDebugStatus, setAdDebugStatus] = useState('checking');
 
   // Refs for loop management
   const gamePausedRef = useRef(false);
@@ -168,6 +171,79 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       playBGM('game-bgm');
     }
   }, [showCharSelect, assetsLoaded, isGameOverScreen]); // ✅ Hook dynamically reacts to death states seamlessly
+
+  // --- 🔗 CAPACITOR NATIVE DEEP LINK INTERCEPTOR ---
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+
+    let appListener;
+    const setupDeepLinkListener = async () => {
+      const { App } = await import('@capacitor/app');
+      appListener = await App.addListener('appUrlOpen', async (event) => {
+        console.log('🔗 Mobile device triggered App redirect:', event.url);
+        
+        try {
+          const urlObj = new URL(event.url);
+          const hash = urlObj.hash;
+          
+          if (hash) {
+            const params = new URLSearchParams(hash.substring(1));
+            const accessToken = params.get('access_token');
+            const refreshToken = params.get('refresh_token');
+
+            if (accessToken && refreshToken) {
+              console.log('🔑 OAuth credentials captured! Attempting login...');
+              
+              // Close standard mobile Browser overlays if they remain active
+              try {
+                const { Browser } = await import('@capacitor/browser');
+                await Browser.close();
+              } catch (e) {
+                console.warn("Overlay Browser already closed or unavailable.");
+              }
+
+              const { data, error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken
+              });
+
+              if (error) throw error;
+
+              if (data?.user) {
+                setUserId(data.user.id);
+                setUserEmail(data.user.email || null);
+                
+                const { data: existingPlayer } = await supabase
+                  .from('players')
+                  .select('name')
+                  .eq('id', data.user.id)
+                  .maybeSingle();
+
+                if (!existingPlayer) {
+                  await supabase.from('players').insert({ 
+                    id: data.user.id, 
+                    email: data.user.email || null,
+                    name: data.user.email ? data.user.email.split('@')[0] : 'Runner'
+                  });
+                }
+                
+                alert("Successfully authenticated with Google!");
+                setShowAuthForm(false);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("🚨 Mobile OAuth Deep-Link Session Set Failed:", err);
+        }
+      });
+    };
+
+    setupDeepLinkListener();
+
+    return () => {
+      if (appListener) appListener.remove();
+    };
+  }, []);
 
   // --- INITIALIZATION AND DAILY CAP ROTATION ENGINE ---
   useEffect(() => {
@@ -254,9 +330,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
     let bgsLoaded = false;
     let bgCount = 0;
+    let spritesLoaded = false;
 
     const verifyFinalSetup = () => {
-      if (bgsLoaded && obstacleManagerRef.current.isLoaded) {
+      // 🏁 Complete load ONLY when backgrounds, obstacles, and character sheets are stored in RAM
+      if (bgsLoaded && obstacleManagerRef.current.isLoaded && spritesLoaded) {
         setAssetsLoaded(true);
       }
     };
@@ -282,29 +360,79 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     mid.onerror = () => console.error(`🚨 Background image failed to load at path: ${midCityImg}`);
     near.onerror = () => console.error(`🚨 Background image failed to load at path: ${nearCityImg}`);
 
+    // 🚀 PRE-HYDRATE ALL HERO ANIMATIONS ON INITIAL BOOT
+    const charactersToPreload = ['jumpy_hero', 'alien_ace', 'explorer_ava', 'pixel_pixie'];
+    let loadedCount = 0;
+    let totalSprites = 0;
+
+    charactersToPreload.forEach(charId => {
+      const config = SPRITE_CONFIG_MAP[charId] || SPRITE_CONFIG_MAP['jumpy_hero'];
+      totalSprites += config.runFrames + config.jumpFrames + config.flyFrames;
+    });
+
+    const checkSpriteLoad = () => {
+      loadedCount++;
+      if (loadedCount === totalSprites) {
+        spritesLoaded = true;
+        verifyFinalSetup();
+      }
+    };
+
+    charactersToPreload.forEach(charId => {
+      const config = SPRITE_CONFIG_MAP[charId] || SPRITE_CONFIG_MAP['jumpy_hero'];
+      const actions = [
+        { name: 'run', frames: config.runFrames },
+        { name: 'jump', frames: config.jumpFrames },
+        { name: 'fly', frames: config.flyFrames }
+      ];
+      
+      actions.forEach(action => {
+        for (let i = 0; i < action.frames; i++) {
+          const key = `${config.folder}_${action.name}_${i}`;
+          const img = new Image();
+          img.src = `/assets/animations/${config.folder}/${action.name}/${i}.png`;
+          img.onload = checkSpriteLoad;
+          img.onerror = () => {
+            img.src = `/assets/animations/${config.folder}/idle/0.png`;
+            checkSpriteLoad();
+          };
+          gameplaySpriteCacheRef.current[key] = img;
+        }
+      });
+    });
+
     obstacleManagerRef.current.initialize().then(() => {
       verifyFinalSetup();
     });
   }, []);
 
+  // --- AD COUNTDOWN TIMER TICK EFFECT ---
   useEffect(() => {
-    if (!import.meta.env.DEV) return;
-
-    const getAdRuntimeStatus = () => {
-      if (typeof window === 'undefined') return 'sdk-missing';
-      const adBreakFn = window.adBreak;
-
-      if (typeof adBreakFn !== 'function') return 'sdk-missing';
-      return 'google-hook-ready';
-    };
-
-    const syncStatus = () => {
-      setAdDebugStatus(getAdRuntimeStatus());
-    };
-
-    syncStatus();
-    const interval = setInterval(syncStatus, 1500);
+    let interval;
+    if (adOverlay === 'playing' && adCountdown > 0) {
+      interval = setInterval(() => {
+        setAdCountdown(prev => prev - 1);
+      }, 1000);
+    }
     return () => clearInterval(interval);
+  }, [adOverlay, adCountdown]);
+
+  // --- AD DEPLOYMENT HOOK TRACKING DEBUG ---
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const checkAdHook = () => {
+        if (Capacitor.isNativePlatform()) {
+          setAdDebugStatus('google-hook-ready');
+        } else if (typeof window.adBreak !== 'undefined') {
+          setAdDebugStatus('google-hook-ready');
+        } else {
+          setAdDebugStatus('checking');
+        }
+      };
+      checkAdHook();
+      const t = setInterval(checkAdHook, 2000);
+      return () => clearInterval(t);
+    }
   }, []);
 
   // --- FOOLPROOF DIRECT STORAGE SYNC ENGINE ---
@@ -412,13 +540,30 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   };
 
   const handleGoogleLogin = async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin
+    try {
+      const isNative = Capacitor.isNativePlatform();
+      const redirectUrl = isNative 
+        ? 'com.iamthelostworld.jumpyrun://login-callback' 
+        : window.location.origin;
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          skipBrowserRedirect: isNative
+        }
+      });
+
+      if (error) throw error;
+
+      if (isNative && data?.url) {
+        // 🌐 Open login consent flow in a native sheet to prevent WebView redirection failures
+        const { Browser } = await import('@capacitor/browser');
+        await Browser.open({ url: data.url });
       }
-    });
-    if (error) alert(`Google Provider Authentication Error: ${error.message}`);
+    } catch (err) {
+      alert(`Google Provider Authentication Error: ${err.message}`);
+    }
   };
 
   const handleLogout = async () => {
@@ -439,7 +584,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   };
 
   const spawnParticles = (x, y, color, count = 8) => {
-    for (let i = 0; i < count; i++) {
+    const isNative = Capacitor.isNativePlatform();
+    // ⚡ Halve the rendering overhead dynamically on native devices to prevent stutter
+    const finalCount = isNative ? Math.max(3, Math.floor(count * 0.5)) : count;
+    for (let i = 0; i < finalCount; i++) {
       particlesRef.current.push({
         x,
         y,
@@ -473,8 +621,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
     if (skill.id === 'burst') {
       triggerShake(18); 
-      
-      // 💥 TRIGGER SOUND EFFECT ON GETTING BURST SKILL
       playSFX('explosion');
 
       obstacles.forEach(obs => {
@@ -568,117 +714,36 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   };
 
   const watchRewardedAd = () => {
-    const adBreakFn = window.adBreak;
-    if (typeof adBreakFn !== 'function') {
-      alert('Rewarded ads are not ready yet. Please try again in a few seconds.');
-      return;
-    }
-
-    let callbackReceived = false;
-    let resolved = false;
-
-    const requestTimeout = window.setTimeout(() => {
-      if (resolved || callbackReceived) return;
-      resolved = true;
-      setAdOverlay(null);
-      setShowAdPrompt(true);
-      console.warn('Rewarded ad request timed out before Google returned callbacks.');
-      alert('No ad is available right now. Please try again shortly.');
-    }, 4000);
-
-    const markCallbackReceived = () => {
-      callbackReceived = true;
-      window.clearTimeout(requestTimeout);
-    };
-
     adRewardGrantedRef.current = false;
-
-    // Call the official Google Ad Placement trigger flow
-    try {
-      adBreakFn({
-      type: 'reward',          // Tells Google this is an optional rewarded layout slot
-      name: 'player_revive',    // Label used to isolate reporting in your dashboard
-      
-      beforeAd: () => {
-        markCallbackReceived();
-        setShowAdPrompt(false);
-        setAdOverlay('real-ad');
-        gamePausedRef.current = true;
-        stopBGM();
-      },
-      
-      beforeReward: (showAdFn) => {
-        markCallbackReceived();
-        // Google calls this hook if a valid ad asset is ready for the player
-        showAdFn(); 
-      },
-      
-      adDismissed: () => {
-        markCallbackReceived();
-        if (resolved) return;
-        resolved = true;
-        setAdOverlay(null);
-        // Player skipped out or clicked the "X" button before the commercial finished
-        console.log("❌ Ad skipped by player. No tokens granted.");
-        handleSkipAdRevive();
-      },
-      
-      adViewed: () => {
-        markCallbackReceived();
-        if (resolved) return;
-        resolved = true;
-        // Player successfully watched the ad to completion! 🎉
-        console.log("🏅 Ad watched completely! Executing reward sweep.");
-        handleAdRewardSuccess();
-      },
-      
-      adBreakDone: (placementInfo) => {
-        markCallbackReceived();
-        if (resolved) return;
-        resolved = true;
-        setAdOverlay(null);
-        const breakStatus = placementInfo?.breakStatus || placementInfo?.type || 'unknown';
-        console.warn(`Rewarded ad did not complete. Status: ${breakStatus}`);
-        gamePausedRef.current = true;
-        setShowAdPrompt(true);
-        // Triggers at the absolute end of the loop cycle regardless of success/failure
-        console.log("🎬 Google AdBreak execution lifecycle closed.", placementInfo);
-      }
-      });
-    } catch (err) {
-      window.clearTimeout(requestTimeout);
-      setAdOverlay(null);
-      setShowAdPrompt(true);
-      console.error('Rewarded ad invocation failed:', err);
-      alert('Unable to request a rewarded ad right now. Please try again shortly.');
-    }
-  };
-
-  // Extract your successful reward logic into a separate utility function to keep things tidy
-  const handleAdRewardSuccess = () => {
-    adRewardGrantedRef.current = true; 
-    
-    // Save state increments locally
-    const internalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10) + 1;
-    localStorage.setItem('runner_daily_ads_count', internalCount.toString());
-    
-    setDailyAdsUsed(internalCount);
-    setHasUsedAdRevive(true);
     setShowAdPrompt(false);
-    setAdOverlay(null);
+    setAdOverlay('loading');
 
-    // Wipe screen clutter and grant player their ghost status run
-    obstaclesRef.current.length = 0;
-    ufosRef.current.length = 0;
-    
-    const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
-    activeSkillsRef.current['invisible'] = {
-      expires: Date.now() + 3000,
-      name: invSkillDef ? invSkillDef.name : 'Invisibility',
-      icon: invSkillDef ? invSkillDef.icon : '👻'
-    };
-    
-    gamePausedRef.current = false;
+    // ✅ Integrates native AdMob wrapper seamlessly, falling back to desktop simulation automatically
+    showRewardedAd(
+      () => {
+        adRewardGrantedRef.current = true;
+        const internalCount = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10) + 1;
+        localStorage.setItem('runner_daily_ads_count', internalCount.toString());
+        setDailyAdsUsed(internalCount);
+        setHasUsedAdRevive(true);
+        setAdOverlay(null);
+
+        obstaclesRef.current.length = 0;
+        ufosRef.current.length = 0;
+
+        const invSkillDef = SKILLS_REGISTRY.find(s => s.id === 'invisible');
+        activeSkillsRef.current['invisible'] = {
+          expires: Date.now() + 3000,
+          name: invSkillDef ? invSkillDef.name : 'Invisibility',
+          icon: invSkillDef ? invSkillDef.icon : '👻'
+        };
+        gamePausedRef.current = false;
+      },
+      () => {
+        setAdOverlay(null);
+        handleSkipAdRevive();
+      }
+    );
   };
 
   const handleSkipAdRevive = () => {
@@ -751,9 +816,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     setReviveCount(reviveCountRef.current);
     setActiveSkills(Object.entries(activeSkillsRef.current).map(([id, v]) => ({ id, name: v.name, icon: v.icon })));
     setHasUsedAdRevive(false);
-    adRewardGrantedRef.current = false;
-    setAdCountdown(5);
-    setAdOverlay(null);
     setIsGameOverScreen(false);
     setShowAdPrompt(false);
     gamePausedRef.current = false;
@@ -764,12 +826,27 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+    const logicalWidth = 800;
+    const logicalHeight = 400;
     
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = 800 * dpr;
-    canvas.height = 400 * dpr;
+    const dpr = Math.min(window.devicePixelRatio || 1, Capacitor.isNativePlatform() ? 1.5 : 2);
+    const viewportWidth = canvas.clientWidth || logicalWidth;
+    const viewportHeight = canvas.clientHeight || logicalHeight;
+    const scale = Math.max(viewportWidth / logicalWidth, viewportHeight / logicalHeight);
+    const offsetX = (viewportWidth - (logicalWidth * scale)) / 2;
+    const offsetY = (viewportHeight - (logicalHeight * scale)) / 2;
 
-    ctx.scale(dpr, dpr);
+    canvas.width = viewportWidth * dpr;
+    canvas.height = viewportHeight * dpr;
+
+    ctx.setTransform(
+      scale * dpr,
+      0,
+      0,
+      scale * dpr,
+      offsetX * dpr,
+      offsetY * dpr
+    );
 
     let animationFrameId;
     let localScore = score; 
@@ -778,6 +855,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     let isGameOver = false;
 
     let lastTime = performance.now();
+    let lastHudUpdateTime = lastTime;
     const fpsInterval = 1000 / 60;
 
     let prevActiveIdsStr = '';
@@ -892,7 +970,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         setActiveSkills(currentActive);
       }
 
-      ctx.clearRect(0, 0, 800, 400);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.setTransform(
+        scale * dpr,
+        0,
+        0,
+        scale * dpr,
+        offsetX * dpr,
+        offsetY * dpr
+      );
       ctx.save();
 
       if (shakeIntensityRef.current > 0.1) {
@@ -1005,7 +1092,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         frameTickTimer = 0;
       }
 
-      if (runtimeAction !== lastLoggedAction) {
+      if (import.meta.env.DEV && runtimeAction !== lastLoggedAction) {
         let emojiIcon = '🏃‍♂️';
         if (runtimeAction === 'jump') emojiIcon = '🦘';
         if (runtimeAction === 'fly') emojiIcon = '🚀';
@@ -1054,7 +1141,12 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       ctx.fillStyle = auraGradient;
       ctx.fill();
 
-      if (Math.random() < 0.3 || (isSkillActive('sprint') && Math.random() < 0.85)) {
+      // ⚡ Dynamic Mobile Throttling: Reduces particle emissions dynamically to save CPU cycles on mobile WebView
+      const isNative = Capacitor.isNativePlatform();
+      const baseChance = isNative ? 0.15 : 0.3;
+      const sprintChance = isNative ? 0.45 : 0.85;
+
+      if (Math.random() < baseChance || (isSkillActive('sprint') && Math.random() < sprintChance)) {
         const isSprinting = isSkillActive('sprint');
         particlesRef.current.push({
           x: player.x + (isSprinting ? 5 : Math.random() * player.width),
@@ -1067,7 +1159,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         });
       }
 
-      if (isSkillActive('sprint') && Math.random() < 0.4) {
+      if (isSkillActive('sprint') && Math.random() < (isNative ? 0.2 : 0.4)) {
         particlesRef.current.push({
           x: player.x + player.width + 10,
           y: player.y + Math.random() * player.height,
@@ -1181,8 +1273,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         sonicTimer++;
         if (sonicTimer > 180) { 
           triggerShake(5); 
-          
-          // 🔊 TRIGGER NATIVE PULSE AUDIO
           playSFX('sonic-blast');
 
           sonicWavesRef.current.push({
@@ -1300,7 +1390,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
             continue; 
           }
           
-          // 💥 TRIGGER PHYSICAL BUMP SFX ON UFO ENCOUNTER
           playSFX('bump');
 
           if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
@@ -1428,7 +1517,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
             continue; 
           }
           
-          // 💥 TRIGGER PHYSICAL BUMP SFX ON OBSTACLE IMPACT
           playSFX('bump');
 
           if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
@@ -1512,10 +1600,8 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           spawnParticles(coin.x, coin.y, '#fbbf24', 5);
           spawnParticles(coin.x, coin.y, '#ffffff', 2);
 
-          // 🪙 TRIGGER COIN COLLECTION SFX
           playSFX('coin');
 
-          setCoins(localCoins);
           coinsArray.splice(i, 1);
           continue;
         }
@@ -1534,11 +1620,16 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       const baseDistanceStep = isSkillActive('sprint') ? 0.4 : 0.15;
       localDistance += baseDistanceStep * gameSpeedMultiplier;
-      setDistance(Math.floor(localDistance));
 
       const baseScoreStep = isSkillActive('multiplier') ? 0.6 : 0.2;
       localScore += baseScoreStep * gameSpeedMultiplier;
-      setScore(Math.floor(localScore));
+
+      if (currentTime - lastHudUpdateTime >= HUD_UPDATE_INTERVAL) {
+        lastHudUpdateTime = currentTime;
+        setCoins(localCoins);
+        setDistance(Math.floor(localDistance));
+        setScore(Math.floor(localScore));
+      }
 
       if (localScore >= nextSkillMilestoneRef.current) {
         nextSkillMilestoneRef.current += 400; 
@@ -1557,7 +1648,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen, assetsLoaded, showCharSelect, selectedChar]); 
 
   return (
-    <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] bg-slate-950 border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
+    <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col items-center justify-center">
       
       {assetsLoaded && showCharSelect && (
         <div className="absolute inset-0 z-50 w-full h-full">
@@ -1624,7 +1715,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       <canvas
         ref={canvasRef}
         onClick={() => canvasClickHandler.current && canvasClickHandler.current()}
-        className="w-full object-contain bg-slate-950 touch-none cursor-pointer"
+        className="w-full h-full bg-slate-950 touch-none cursor-pointer"
       />
 
       {/* 🏅 LIVE CLOUD LEADERBOARD OVERLAY */}
@@ -1681,7 +1772,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       {import.meta.env.DEV && (
         <div className="absolute top-2 right-2 z-[70] bg-black/70 text-white text-[10px] font-mono px-2 py-1 rounded border border-white/20 pointer-events-none">
-          Ad revive: {adDebugStatus === 'google-hook-ready' ? 'Google Hook Ready' : adDebugStatus === 'checking' ? 'Checking' : 'SDK Missing'}
+          Ad Status: {adDebugStatus === 'google-hook-ready' ? 'SDK Loaded' : adDebugStatus === 'checking' ? 'Checking' : 'SDK Missing'}
         </div>
       )}
       

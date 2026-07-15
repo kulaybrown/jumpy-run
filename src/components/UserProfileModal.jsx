@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { startGoogleOAuth } from '../utils/OAuthService';
 
 const COUNTRIES_LIST = [
   "Australia", "Canada", "China", "France", "Germany", "India", 
@@ -170,11 +171,7 @@ export default function UserProfileModal({ isOpen, onClose }) {
       if (activeId) {
         localStorage.setItem('pre_auth_guest_id', activeId);
       }
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.origin }
-      });
-      if (error) throw error;
+      await startGoogleOAuth();
     } catch (err) {
       alert(`Google Connection Error: ${err.message}`);
     }

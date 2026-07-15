@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
+import { App as CapacitorApp } from '@capacitor/app';
 import MainMenu from './pages/MainMenu';
 import CharacterSelect from './pages/CharacterSelect';
 import GameScreen from './pages/GameScreen';
+import { initializeAds } from './utils/AdService';
+import { handleOAuthCallbackUrl } from './utils/OAuthService';
 
 export default function App() {
   // Game States: 'MENU', 'CHAR_SELECT', 'PLAYING', 'GAME_OVER'
@@ -11,6 +15,32 @@ export default function App() {
   
   // Keep track of the color chosen (Default to Cyan Blue)
   const [selectedColor, setSelectedColor] = useState('#38bdf8');
+
+  useEffect(() => {
+    initializeAds();
+  }, []);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+
+    let listenerHandle;
+
+    const registerListener = async () => {
+      listenerHandle = await CapacitorApp.addListener('appUrlOpen', ({ url }) => {
+        void handleOAuthCallbackUrl(url).catch((err) => {
+          console.error('Native OAuth callback handling failed:', err);
+        });
+      });
+    };
+
+    void registerListener();
+
+    return () => {
+      if (listenerHandle) {
+        void listenerHandle.remove();
+      }
+    };
+  }, []);
 
   const goToCharacterSelect = () => {
     setGameState('CHAR_SELECT');
