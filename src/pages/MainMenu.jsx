@@ -7,6 +7,7 @@ import RankingBoardModal from '../components/RankingBoardModal';
 import SettingsIconSetting from '../components/SettingsIconSetting'; // ✅ Imported Settings Icon
 import SettingsModal from '../components/SettingsModal';             // ✅ Imported Settings Modal
 import { supabase } from '../supabaseClient';
+import { assetPath } from '../utils/assetPath';
 
 function FrameAnimation({ basePath, frameCount = 4, frameDuration = 150, extension = 'png', alt = '', className = '' }) {
   const [frame, setFrame] = useState(1);
@@ -18,7 +19,7 @@ function FrameAnimation({ basePath, frameCount = 4, frameDuration = 150, extensi
     return () => clearInterval(id);
   }, [frameCount, frameDuration]);
 
-  return <img src={`${basePath}/${frame}.${extension}`} alt={alt} className={className} />;
+  return <img src={assetPath(`${basePath}/${frame}.${extension}`)} alt={alt} className={className} />;
 }
 
 function BounceShadow({ duration = '1000ms', className = '' }) {
@@ -52,7 +53,10 @@ export default function MainMenu({ onStartGame, onTriggerAuth }) {
   }, []);
 
   return (
-    <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] overflow-hidden select-none font-sans bg-[url('/assets/main-menu-bg.jpg')] bg-cover bg-center">
+    <div
+      className="relative w-full h-full lg:h-auto lg:aspect-[2/1] overflow-hidden select-none font-sans bg-cover bg-center"
+      style={{ backgroundImage: `url(${assetPath('assets/main-menu-bg.jpg')})` }}
+    >
       <style>{`
         @keyframes shadowPulse {
           0%, 100% { transform: translateX(-50%) scale(0.55); opacity: 0.25; }
@@ -92,27 +96,27 @@ export default function MainMenu({ onStartGame, onTriggerAuth }) {
 
       {/* 🖼️ PIXEL ART BORDER FRAME */}
       <div className="absolute inset-0 z-50 pointer-events-none">
-        <div className="absolute top-0 left-0 w-11 h-11 bg-[url('/assets/border/top-left.png')] bg-no-repeat bg-contain" />
-        <div className="absolute top-0 right-0 w-11 h-11 bg-[url('/assets/border/top-right.png')] bg-no-repeat bg-contain" />
-        <div className="absolute bottom-0 left-0 w-11 h-11 bg-[url('/assets/border/bot-left.png')] bg-no-repeat bg-contain" />
-        <div className="absolute bottom-0 right-0 w-11 h-11 bg-[url('/assets/border/bot-right.png')] bg-no-repeat bg-contain" />
+        <div className="absolute top-0 left-0 w-11 h-11 bg-no-repeat bg-contain" style={{ backgroundImage: `url(${assetPath('assets/border/top-left.png')})` }} />
+        <div className="absolute top-0 right-0 w-11 h-11 bg-no-repeat bg-contain" style={{ backgroundImage: `url(${assetPath('assets/border/top-right.png')})` }} />
+        <div className="absolute bottom-0 left-0 w-11 h-11 bg-no-repeat bg-contain" style={{ backgroundImage: `url(${assetPath('assets/border/bot-left.png')})` }} />
+        <div className="absolute bottom-0 right-0 w-11 h-11 bg-no-repeat bg-contain" style={{ backgroundImage: `url(${assetPath('assets/border/bot-right.png')})` }} />
 
-        <div className="absolute top-0 left-11 right-11 h-[10px] bg-[url('/assets/border/line-top.png')] bg-repeat-x bg-[length:1.5px]" />
-        <div className="absolute bottom-0 left-11 right-11 h-[10px] bg-[url('/assets/border/line-bot.png')] bg-repeat-x bg-[length:1.5px]" />
-        <div className="absolute left-0 top-11 bottom-11 w-[11px] bg-[url('/assets/border/line-left.png')] bg-repeat-y bg-[length:11px]" />
-        <div className="absolute right-0 top-11 bottom-11 w-[11px] bg-[url('/assets/border/line-right.png')] bg-repeat-y bg-[length:11px]" />
+        <div className="absolute top-0 left-11 right-11 h-[10px] bg-repeat-x bg-[length:1.5px]" style={{ backgroundImage: `url(${assetPath('assets/border/line-top.png')})` }} />
+        <div className="absolute bottom-0 left-11 right-11 h-[10px] bg-repeat-x bg-[length:1.5px]" style={{ backgroundImage: `url(${assetPath('assets/border/line-bot.png')})` }} />
+        <div className="absolute left-0 top-11 bottom-11 w-[11px] bg-repeat-y bg-[length:11px]" style={{ backgroundImage: `url(${assetPath('assets/border/line-left.png')})` }} />
+        <div className="absolute right-0 top-11 bottom-11 w-[11px] bg-repeat-y bg-[length:11px]" style={{ backgroundImage: `url(${assetPath('assets/border/line-right.png')})` }} />
       </div>
 
       <div className="relative w-full h-full flex flex-col items-center justify-between p-5">
 
         {/* ☀️ BACKGROUND ENVIRONMENT ELEMENTS */}
         <div className="absolute top-[8%] left-[15%] flex flex-col items-center justify-center animate-pulse">
-          <img src="/assets/sun.png" alt="Sun" className="w-20 h-20 lg:w-25 lg:h-25 filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]" />
+          <img src={assetPath('assets/sun.png')} alt="Sun" className="w-20 h-20 lg:w-25 lg:h-25 filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]" />
         </div>
 
         <div className="absolute top-[17%] left-[4%] flex flex-col items-center justify-center">
           <FrameAnimation
-            basePath="/assets/animations/bird/idle"
+            basePath="assets/animations/bird/idle"
             alt="Bird"
             className="w-16 h-16 lg:w-20 lg:h-20 filter drop-shadow-[0_0_15px_rgba(253,224,71,0.8)]"
           />
@@ -120,29 +124,29 @@ export default function MainMenu({ onStartGame, onTriggerAuth }) {
 
         {/* 👾 SPRITES & GAMEPLAY OBJECTS */}
         <div className="absolute bottom-[28%] left-[26%] w-15 h-15 lg:w-20 lg:h-20">
-          <FrameAnimation basePath="/assets/animations/monster1/idle" alt="Monster" className="w-full h-full" />
+          <FrameAnimation basePath="assets/animations/monster1/idle" alt="Monster" className="w-full h-full" />
           <div className="absolute left-1/2 bottom-[3px] w-3/5 h-2 bg-black/40 rounded-full blur-[2px]" style={{ transform: 'translateX(-50%)' }} />
         </div>
         <div className="absolute bottom-[32%] left-[38%] w-15 h-15 lg:w-20 lg:h-20">
-          <FrameAnimation basePath="/assets/animations/monster2/idle" alt="Monster" className="w-full h-full" />
+          <FrameAnimation basePath="assets/animations/monster2/idle" alt="Monster" className="w-full h-full" />
           <div className="absolute left-1/2 bottom-[3px] w-3/5 h-2 bg-black/40 rounded-full blur-[2px]" style={{ transform: 'translateX(-50%)' }} />
         </div>
 
         <div className="absolute bottom-[30%] right-[35%] w-15 h-15 lg:w-20 lg:h-20">
           <div className="relative w-full h-full animate-bounce [animation-duration:2000ms]">
-            <img src="/assets/spike-ball.png" alt="Spike ball" className="w-full h-full" />
+            <img src={assetPath('assets/spike-ball.png')} alt="Spike ball" className="w-full h-full" />
           </div>
           <BounceShadow duration="2000ms" className="bottom-[-6px] w-3/5 h-2" />
         </div>
         <div className="absolute bottom-[40%] right-[15%] w-15 h-15 lg:w-20 lg:h-20">
           <div className="relative w-full h-full animate-bounce [animation-duration:800ms]">
-            <img src="/assets/mushroom.png" alt="Mushroom" className="w-full h-full" />
+            <img src={assetPath('assets/mushroom.png')} alt="Mushroom" className="w-full h-full" />
           </div>
           <BounceShadow duration="800ms" className="bottom-[-6px] w-3/5 h-2" />
         </div>
         <div className="absolute bottom-[15%] right-[6%] w-15 h-15 lg:w-20 lg:h-20">
           <div className="relative w-full h-full animate-bounce [animation-duration:1000ms]">
-            <img src="/assets/mushroom.png" alt="Mushroom" className="w-full h-full" />
+            <img src={assetPath('assets/mushroom.png')} alt="Mushroom" className="w-full h-full" />
           </div>
           <BounceShadow duration="1000ms" className="bottom-[-6px] w-3/5 h-2" />
         </div>
@@ -156,7 +160,7 @@ export default function MainMenu({ onStartGame, onTriggerAuth }) {
         {/* 🏃 HERO CHARACTER */}
         <div className="absolute bottom-[30%] left-1/2 -translate-x-1/2 w-25 h-25 lg:w-35 lg:h-35">
           <FrameAnimation
-            basePath="/assets/animations/jumpy/idle"
+            basePath="assets/animations/jumpy/idle"
             alt="Hero"
             className="w-full h-full filter drop-shadow-[0_4px_0_rgba(0,0,0,0.3)]"
           />

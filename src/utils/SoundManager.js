@@ -4,26 +4,27 @@
  * overlapping SFX playback capabilities alongside loopable BGM track controls.
  * Includes automatic browser autoplay unlock handling and real-time settings volume sync.
  */
+import { assetPath } from './assetPath';
 
 const SOUNDS_REGISTRY = {
-  press: new Audio('/assets/audio/press.mp3'),       
-  coin: new Audio('/assets/audio/coin.mp3'),         
-  select: new Audio('/assets/audio/select.mp3'),     
-  click: new Audio('/assets/audio/click.mp3'),       
-  dead: new Audio('/assets/audio/dead.mp3'),
-  explosion: new Audio('/assets/audio/explosion.mp3'), 
-  'sonic-blast': new Audio('/assets/audio/sonic-blast.mp3'), 
-  superman: new Audio('/assets/audio/superman.mp3'), 
-  ufo: new Audio('/assets/audio/ufo.mp3'),
-  bump: new Audio('/assets/audio/bump.mp3'),                 
-  'press-forward': new Audio('/assets/audio/press-forward.mp3'), 
-  'press-back': new Audio('/assets/audio/press-back.mp3')        
+  press: new Audio(assetPath('assets/audio/press.mp3')),
+  coin: new Audio(assetPath('assets/audio/coin.mp3')),
+  select: new Audio(assetPath('assets/audio/select.mp3')),
+  click: new Audio(assetPath('assets/audio/click.mp3')),
+  dead: new Audio(assetPath('assets/audio/dead.mp3')),
+  explosion: new Audio(assetPath('assets/audio/explosion.mp3')),
+  'sonic-blast': new Audio(assetPath('assets/audio/sonic-blast.mp3')),
+  superman: new Audio(assetPath('assets/audio/superman.mp3')),
+  ufo: new Audio(assetPath('assets/audio/ufo.mp3')),
+  bump: new Audio(assetPath('assets/audio/bump.mp3')),
+  'press-forward': new Audio(assetPath('assets/audio/press-forward.mp3')),
+  'press-back': new Audio(assetPath('assets/audio/press-back.mp3'))
 };
 
 // 📻 Loopable Background Music Registry
 const BGM_REGISTRY = {
-  'game-bgm': new Audio('/assets/audio/game-bgm.mp3'),
-  'mainmenu-bgm': new Audio('/assets/audio/mainmenu-bgm.mp3')
+  'game-bgm': new Audio(assetPath('assets/audio/game-bgm.mp3')),
+  'mainmenu-bgm': new Audio(assetPath('assets/audio/mainmenu-bgm.mp3'))
 };
 
 // Initialize looping attributes on background tracks

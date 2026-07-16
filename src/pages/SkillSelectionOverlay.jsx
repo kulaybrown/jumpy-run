@@ -1,4 +1,5 @@
 import React from 'react';
+import { assetPath } from '../utils/assetPath';
 
 const lightenColor = (hex, amount) => {
   const h = hex.replace('#', '');
@@ -21,19 +22,25 @@ export default function SkillSelectionOverlay({ showCards, randomCards, onSelect
         
         {/* 📋 CHOPPED MIXEL-ART MILESTONE BANNER OVERLAY */}
         <div className="flex items-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated z-50 -mb-6 sm:-mb-9 translate-y-1 transform">
-          <img src="/assets/banner/milestone-banner-left.png" alt="" className="h-full object-contain select-none pointer-events-none" />
-          <div className="h-full flex items-center justify-center px-6 bg-[url('/assets/banner/milestone-banner-center.png')] bg-repeat-x bg-[length:auto_100%]">
+          <img src={assetPath('assets/banner/milestone-banner-left.png')} alt="" className="h-full object-contain select-none pointer-events-none" />
+          <div
+            className="h-full flex items-center justify-center px-6 bg-repeat-x bg-[length:auto_100%]"
+            style={{ backgroundImage: `url(${assetPath('assets/banner/milestone-banner-center.png')})` }}
+          >
             <h2 className="text-xl sm:text-3xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap font-bungee [-webkit-text-stroke:2px_#000000]">
               MILESTONE REACHED!
             </h2>
           </div>
-          <img src="/assets/banner/milestone-banner-right.png" alt="" className="h-full object-contain select-none pointer-events-none" />
+          <img src={assetPath('assets/banner/milestone-banner-right.png')} alt="" className="h-full object-contain select-none pointer-events-none" />
         </div>
 
         {/* 📋 SCOREBOARD PANEL PIXEL-ART SANDWICH LAYOUT HOUSING */}
         <div className="w-full flex flex-col drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] image-render-pixelated relative">
-          <img src="/assets/milestone-board-top.png" alt="" className="w-full object-contain select-none pointer-events-none" />
-          <div className="w-full bg-[url('/assets/milestone-board-center.png')] bg-repeat-y bg-[length:100%_auto] px-5 sm:px-8 md:px-10 pt-7 flex flex-col items-center">
+          <img src={assetPath('assets/milestone-board-top.png')} alt="" className="w-full object-contain select-none pointer-events-none" />
+          <div
+            className="w-full bg-repeat-y bg-[length:100%_auto] px-5 sm:px-8 md:px-10 pt-7 flex flex-col items-center"
+            style={{ backgroundImage: `url(${assetPath('assets/milestone-board-center.png')})` }}
+          >
             
             {/* 📊 SKILLS LIST SELECTION GRID */}
             <div className="grid grid-cols-3 gap-2.5 md:gap-4 w-full px-1 max-h-[220px] sm:max-h-[260px] overflow-y-auto">
@@ -56,7 +63,7 @@ export default function SkillSelectionOverlay({ showCards, randomCards, onSelect
                       >
                         {isImageIcon ? (
                           <img
-                            src={`/${skill.icon}`}
+                            src={assetPath(String(skill.icon || '').replace(/^\/+/, ''))}
                             alt={skill.name}
                             className="w-full h-full object-cover image-render-pixelated"
                             onError={(e) => { e.target.style.display = 'none'; }}
@@ -90,7 +97,7 @@ export default function SkillSelectionOverlay({ showCards, randomCards, onSelect
               })}
             </div>
           </div>
-          <img src="/assets/milestone-board-bottom.png" alt="" className="w-full object-contain select-none pointer-events-none" />
+          <img src={assetPath('assets/milestone-board-bottom.png')} alt="" className="w-full object-contain select-none pointer-events-none" />
         </div>
 
       </div>

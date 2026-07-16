@@ -9,6 +9,7 @@ import SettingsModal from '../components/SettingsModal';             // ✅ Impo
 import { SKILLS_REGISTRY } from '../skillsData';
 import { supabase } from '../supabaseClient';
 import { playSFX } from '../utils/SoundManager'; 
+import { assetPath } from '../utils/assetPath';
 
 const CHARACTERS = [
   { id: 'jumpy_hero', name: 'JUMPY HERO', desc: 'The classic runner', sprite: '🏃‍♂️', folder: 'jumpy', idleFrames: 6, speed: 3, jump: 3, boost: null, startSkills: ['revive', 'shield'] },
@@ -29,7 +30,7 @@ function AnimatedIdleSprite({ folder, fallbackSprite, frameCount = 6 }) {
     return () => clearInterval(interval);
   }, [frameCount, loadFailed]);
 
-  const imagePath = `/assets/animations/${folder}/idle/${currentFrame}.png`;
+  const imagePath = assetPath(`assets/animations/${folder}/idle/${currentFrame}.png`);
 
   if (loadFailed) {
     return <div className="text-5xl sm:text-6xl filter drop-shadow-[0_4px_0_rgba(0,0,0,0.15)] animate-bounce [animation-duration:5000ms]">{fallbackSprite}</div>;
@@ -73,7 +74,10 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
   };
 
   return (
-    <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] overflow-hidden select-none bg-[url('/assets/main-menu-bg.jpg')] bg-cover bg-center">
+    <div
+      className="relative w-full h-full lg:h-auto lg:aspect-[2/1] overflow-hidden select-none bg-cover bg-center"
+      style={{ backgroundImage: `url(${assetPath('assets/main-menu-bg.jpg')})` }}
+    >
 
       {/* 👤 USER PROFILE TRIGGERS & MODALS */}
       <UserIconSetting 
@@ -107,15 +111,15 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
 
       {/* 🖼️ PIXEL ART BORDER FRAME */}
       <div className="absolute inset-0 z-50 pointer-events-none">
-        <div className="absolute top-0 left-0 w-11 h-11 bg-[url('/assets/border/top-left.png')] bg-no-repeat bg-contain" />
-        <div className="absolute top-0 right-0 w-11 h-11 bg-[url('/assets/border/top-right.png')] bg-no-repeat bg-contain" />
-        <div className="absolute bottom-0 left-0 w-11 h-11 bg-[url('/assets/border/bot-left.png')] bg-no-repeat bg-contain" />
-        <div className="absolute bottom-0 right-0 w-11 h-11 bg-[url('/assets/border/bot-right.png')] bg-no-repeat bg-contain" />
+        <div className="absolute top-0 left-0 w-11 h-11 bg-no-repeat bg-contain" style={{ backgroundImage: `url(${assetPath('assets/border/top-left.png')})` }} />
+        <div className="absolute top-0 right-0 w-11 h-11 bg-no-repeat bg-contain" style={{ backgroundImage: `url(${assetPath('assets/border/top-right.png')})` }} />
+        <div className="absolute bottom-0 left-0 w-11 h-11 bg-no-repeat bg-contain" style={{ backgroundImage: `url(${assetPath('assets/border/bot-left.png')})` }} />
+        <div className="absolute bottom-0 right-0 w-11 h-11 bg-no-repeat bg-contain" style={{ backgroundImage: `url(${assetPath('assets/border/bot-right.png')})` }} />
 
-        <div className="absolute top-0 left-11 right-11 h-[10px] bg-[url('/assets/border/line-top.png')] bg-repeat-x bg-[length:1.5px]" />
-        <div className="absolute bottom-0 left-11 right-11 h-[10px] bg-[url('/assets/border/line-bot.png')] bg-repeat-x bg-[length:1.5px]" />
-        <div className="absolute left-0 top-11 bottom-11 w-[11px] bg-[url('/assets/border/line-left.png')] bg-repeat-y bg-[length:11px]" />
-        <div className="absolute right-0 top-11 bottom-11 w-[11px] bg-[url('/assets/border/line-right.png')] bg-repeat-y bg-[length:11px]" />
+        <div className="absolute top-0 left-11 right-11 h-[10px] bg-repeat-x bg-[length:1.5px]" style={{ backgroundImage: `url(${assetPath('assets/border/line-top.png')})` }} />
+        <div className="absolute bottom-0 left-11 right-11 h-[10px] bg-repeat-x bg-[length:1.5px]" style={{ backgroundImage: `url(${assetPath('assets/border/line-bot.png')})` }} />
+        <div className="absolute left-0 top-11 bottom-11 w-[11px] bg-repeat-y bg-[length:11px]" style={{ backgroundImage: `url(${assetPath('assets/border/line-left.png')})` }} />
+        <div className="absolute right-0 top-11 bottom-11 w-[11px] bg-repeat-y bg-[length:11px]" style={{ backgroundImage: `url(${assetPath('assets/border/line-right.png')})` }} />
       </div>
 
       <div className="relative w-full h-full flex flex-col items-center justify-center p-4 md:p-5">
@@ -123,13 +127,16 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
           
           {/* 📋 BANNER OVERLAY */}
           <div className="flex items-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated z-50 -mb-5 translate-y-1 transform">
-            <img src="/assets/banner/left-bg.png" alt="" className="h-full object-contain select-none pointer-events-none" />
-            <div className="h-full flex items-center justify-center px-6 sm:px-12 bg-[url('/assets/banner/fill-bg.png')] bg-repeat-x bg-[length:auto_100%]">
+            <img src={assetPath('assets/banner/left-bg.png')} alt="" className="h-full object-contain select-none pointer-events-none" />
+            <div
+              className="h-full flex items-center justify-center px-6 sm:px-12 bg-repeat-x bg-[length:auto_100%]"
+              style={{ backgroundImage: `url(${assetPath('assets/banner/fill-bg.png')})` }}
+            >
               <h2 className="text-xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap mb-2 font-bungee [-webkit-text-stroke:2px_#000000]">
                 Select your runner
               </h2>
             </div>
-            <img src="/assets/banner/right-bg.png" alt="" className="h-full object-contain select-none pointer-events-none" />
+            <img src={assetPath('assets/banner/right-bg.png')} alt="" className="h-full object-contain select-none pointer-events-none" />
           </div>
 
           {/* 📋 SCOREBOARD PANEL */}

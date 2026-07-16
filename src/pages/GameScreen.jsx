@@ -10,15 +10,63 @@ import UserProfileModal from '../components/UserProfileModal';
 import { SKILLS_REGISTRY } from '../skillsData';
 import { BackgroundEffects } from '../utils/BackgroundEffects';
 import { ObstacleManager } from '../utils/ObstacleManager';
+import { assetPath } from '../utils/assetPath';
 import { showRewardedAd } from '../utils/AdService';
 import { supabase } from '../supabaseClient';
 import { playSFX, playBGM, stopBGM, setPlatformMuted } from '../utils/SoundManager'; 
 import { Capacitor } from '@capacitor/core';
 
 // Plain static public paths definition
-const farCityImg = '/assets/far-bg.png';
-const midCityImg = '/assets/mid-bg.png';
-const nearCityImg = '/assets/near-bg.png';
+const farCityImg = assetPath('assets/far-bg.png');
+const midCityImg = assetPath('assets/mid-bg.png');
+const nearCityImg = assetPath('assets/near-bg.png');
+
+// Stage-2 preload set: UI/overlay images that are not required to start gameplay loop.
+const NON_BLOCKING_UI_ASSET_PATHS = [
+  'assets/main-menu-bg.jpg',
+  'assets/sun.png',
+  'assets/spike-ball.png',
+  'assets/mushroom.png',
+  'assets/banner/left-bg.png',
+  'assets/banner/right-bg.png',
+  'assets/banner/fill-bg.png',
+  'assets/banner/milestone-banner-left.png',
+  'assets/banner/milestone-banner-center.png',
+  'assets/banner/milestone-banner-right.png',
+  'assets/border/top-left.png',
+  'assets/border/top-right.png',
+  'assets/border/bot-left.png',
+  'assets/border/bot-right.png',
+  'assets/border/line-top.png',
+  'assets/border/line-bot.png',
+  'assets/border/line-left.png',
+  'assets/border/line-right.png',
+  'assets/scoreboard-top.png',
+  'assets/scoreboard-center.png',
+  'assets/scoreboard-bot.png',
+  'assets/milestone-board-top.png',
+  'assets/milestone-board-center.png',
+  'assets/milestone-board-bottom.png',
+  'assets/status-star.png',
+  'assets/status-run.png',
+  'assets/status-coins.png',
+  'assets/trophy.png',
+  'assets/rank-gold.png',
+  'assets/rank-silver.png',
+  'assets/rank-bronze.png',
+  'assets/animations/bird/idle/1.png',
+  'assets/animations/bird/idle/2.png',
+  'assets/animations/bird/idle/3.png',
+  'assets/animations/bird/idle/4.png',
+  'assets/animations/monster1/idle/1.png',
+  'assets/animations/monster1/idle/2.png',
+  'assets/animations/monster1/idle/3.png',
+  'assets/animations/monster1/idle/4.png',
+  'assets/animations/monster2/idle/1.png',
+  'assets/animations/monster2/idle/2.png',
+  'assets/animations/monster2/idle/3.png',
+  'assets/animations/monster2/idle/4.png'
+];
 
 // --- CONFIGURATION TUNING ---
 const MAX_DAILY_ADS = 3;
@@ -128,6 +176,8 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const adRewardGrantedRef = useRef(false); 
   const lossSequenceStartedRef = useRef(false);
   const resumeOverlayTimerRef = useRef(null);
+  const stageTwoPreloadStartedRef = useRef(false);
+  const preloadedImageUrlsRef = useRef(new Set());
 
   // Refs for loop management
   const gamePausedRef = useRef(false);
@@ -190,6 +240,56 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!assetsLoaded || stageTwoPreloadStartedRef.current) return;
+
+    stageTwoPreloadStartedRef.current = true;
+
+    const normalizedPaths = new Set(NON_BLOCKING_UI_ASSET_PATHS);
+
+    SKILLS_REGISTRY.forEach((skill) => {
+      const icon = skill?.icon;
+      if (typeof icon === 'string' && (icon.includes('/') || icon.includes('.'))) {
+        normalizedPaths.add(icon.replace(/^\/+/, ''));
+      }
+    });
+
+    Object.values(SPRITE_CONFIG_MAP).forEach((cfg) => {
+      for (let i = 0; i < 6; i++) {
+        normalizedPaths.add(`assets/animations/${cfg.folder}/idle/${i}.png`);
+      }
+    });
+
+    const warmImages = () => {
+      normalizedPaths.forEach((path) => {
+        const resolved = assetPath(path);
+        if (preloadedImageUrlsRef.current.has(resolved)) return;
+
+        preloadedImageUrlsRef.current.add(resolved);
+
+        const img = new Image();
+        img.decoding = 'async';
+        img.src = resolved;
+      });
+    };
+
+    let timeoutId;
+    let idleId;
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(warmImages, { timeout: 1200 });
+    } else {
+      timeoutId = setTimeout(warmImages, 250);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined' && idleId && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [assetsLoaded]);
 
   useEffect(() => {
     if (Capacitor.isNativePlatform() || typeof window === 'undefined') return;
@@ -479,10 +579,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         for (let i = 0; i < action.frames; i++) {
           const key = `${config.folder}_${action.name}_${i}`;
           const img = new Image();
-          img.src = `/assets/animations/${config.folder}/${action.name}/${i}.png`;
+          img.src = assetPath(`assets/animations/${config.folder}/${action.name}/${i}.png`);
           img.onload = checkSpriteLoad;
           img.onerror = () => {
-            img.src = `/assets/animations/${config.folder}/idle/0.png`;
+            img.src = assetPath(`assets/animations/${config.folder}/idle/0.png`);
             checkSpriteLoad();
           };
           gameplaySpriteCacheRef.current[key] = img;
@@ -891,9 +991,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         const key = `${config.folder}_${action.name}_${i}`;
         if (!gameplaySpriteCacheRef.current[key]) {
           const img = new Image();
-          img.src = `/assets/animations/${config.folder}/${action.name}/${i}.png`;
+          img.src = assetPath(`assets/animations/${config.folder}/${action.name}/${i}.png`);
           img.onerror = () => {
-            img.src = `/assets/animations/${config.folder}/idle/0.png`;
+            img.src = assetPath(`assets/animations/${config.folder}/idle/0.png`);
           };
           gameplaySpriteCacheRef.current[key] = img;
         }
@@ -1391,9 +1491,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       if (!loadedFrameTexture) {
         loadedFrameTexture = new Image();
-        loadedFrameTexture.src = `/assets/animations/${spriteConfig.folder}/${runtimeAction}/${spriteFrameIndex}.png`;
+        loadedFrameTexture.src = assetPath(`assets/animations/${spriteConfig.folder}/${runtimeAction}/${spriteFrameIndex}.png`);
         loadedFrameTexture.onerror = () => {
-          loadedFrameTexture.src = `/assets/animations/${spriteConfig.folder}/idle/0.png`;
+          loadedFrameTexture.src = assetPath(`assets/animations/${spriteConfig.folder}/idle/0.png`);
         };
         gameplaySpriteCacheRef.current[textureKey] = loadedFrameTexture;
       }
@@ -1810,7 +1910,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen, assetsLoaded, showCharSelect, selectedChar]); 
 
   return (
-    <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col items-center justify-center">
+    <div className="relative w-full h-full lg:h-auto lg:aspect-[2/1] overflow-hidden select-none font-sans bg-cover bg-center">
       
       {assetsLoaded && showCharSelect && (
         <div className="absolute inset-0 z-50 w-full h-full">

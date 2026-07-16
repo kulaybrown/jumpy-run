@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { assetPath } from '../utils/assetPath';
 
 export default function SpriteAnimator({ 
   characterFolder = 'jumpy', 
@@ -21,7 +22,7 @@ export default function SpriteAnimator({
   }, [characterFolder, action, frameCount, fps]);
 
   // Builds path matching format: src/assets/animations/characterFolder/action/index.png
-  const imagePath = `/assets/animations/${characterFolder}/${action}/${currentFrame}.png`;
+  const imagePath = assetPath(`assets/animations/${characterFolder}/${action}/${currentFrame}.png`);
 
   return (
     <img 
