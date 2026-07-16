@@ -51,6 +51,7 @@ const VOLUME_CONFIG = {
 
 // Keep track of the currently active BGM globally
 let activeBGMKey = null;
+let platformMuteForced = false;
 
 /**
  * Helper to calculate dynamic user volume scales combined with master balance profiles
@@ -58,6 +59,8 @@ let activeBGMKey = null;
 const getRuntimeVolume = (key, isBGM = false) => {
   const masterBase = VOLUME_CONFIG[key] || 0.5;
   if (typeof window === 'undefined') return masterBase;
+
+  if (platformMuteForced) return 0;
 
   // 🛑 MASTER SOUND SWITCH INTERCEPTOR
   const masterSoundSwitch = localStorage.getItem('game_setting_sound_master');
@@ -71,6 +74,14 @@ const getRuntimeVolume = (key, isBGM = false) => {
 
   // Scale the slider percentage (0 to 100) down to a 0.0 - 1.0 multiplier against master levels
   return (parseInt(savedVolumePercent, 10) / 100) * masterBase;
+};
+
+export const setPlatformMuted = (isMuted) => {
+  platformMuteForced = Boolean(isMuted);
+
+  if (activeBGMKey && BGM_REGISTRY[activeBGMKey]) {
+    BGM_REGISTRY[activeBGMKey].volume = getRuntimeVolume(activeBGMKey, true);
+  }
 };
 
 /**

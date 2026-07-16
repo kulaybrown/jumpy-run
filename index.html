@@ -10,18 +10,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@300..700&display=swap" rel="stylesheet">
     <title>Jumpy Run</title>
 
-    <!-- You can use a placeholder ca-pub string for local testing -->
-    <script async 
-      src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9125531137074419" 
-      crossorigin="anonymous">
-    </script>
+    <!-- CrazyGames SDK (used for CrazyGames web variant integration) -->
+    <script src="https://sdk.crazygames.com/crazygames-sdk-v3.js"></script>
 
     <script>
+      const isCrazyGamesHost = /(^|\.)crazygames\.com$/i.test(window.location.hostname);
+
       window.adsbygoogle = window.adsbygoogle || [];
       window.adConfig = window.adConfig || function(o) { window.adsbygoogle.push(o); };
       window.adBreak = window.adBreak || function(o) { window.adsbygoogle.push(o); };
 
       const initAdConfig = () => {
+        if (isCrazyGamesHost) return;
+
         window.adConfig({
           preloadAdBreaks: 'on',
           // Test mode helps validate integration before full serving is available.
@@ -29,9 +30,23 @@
         });
       };
 
+      const loadAdSenseScript = () => {
+        if (isCrazyGamesHost) return;
+
+        const script = document.createElement('script');
+        script.async = true;
+        script.crossOrigin = 'anonymous';
+        script.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9125531137074419';
+        document.head.appendChild(script);
+      };
+
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initAdConfig, { once: true });
+        document.addEventListener('DOMContentLoaded', () => {
+          loadAdSenseScript();
+          initAdConfig();
+        }, { once: true });
       } else {
+        loadAdSenseScript();
         initAdConfig();
       }
     </script>

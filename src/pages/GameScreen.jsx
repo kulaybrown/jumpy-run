@@ -12,7 +12,7 @@ import { BackgroundEffects } from '../utils/BackgroundEffects';
 import { ObstacleManager } from '../utils/ObstacleManager';
 import { showRewardedAd } from '../utils/AdService';
 import { supabase } from '../supabaseClient';
-import { playSFX, playBGM, stopBGM } from '../utils/SoundManager'; 
+import { playSFX, playBGM, stopBGM, setPlatformMuted } from '../utils/SoundManager'; 
 import { Capacitor } from '@capacitor/core';
 
 // Plain static public paths definition
@@ -190,6 +190,76 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() || typeof window === 'undefined') return;
+
+    const sdk = window.CrazyGames?.SDK;
+    if (!sdk || (sdk.environment !== 'local' && sdk.environment !== 'crazygames')) return;
+
+    const syncMuteSetting = (settings) => {
+      setPlatformMuted(Boolean(settings?.muteAudio));
+    };
+
+    const applySettings = async () => {
+      try {
+        await sdk.init();
+        syncMuteSetting(sdk.game.settings || {});
+      } catch (err) {
+        console.warn('CrazyGames settings init failed:', err);
+      }
+    };
+
+    applySettings();
+    sdk.game.addSettingsChangeListener(syncMuteSetting);
+
+    return () => {
+      sdk.game.removeSettingsChangeListener(syncMuteSetting);
+      setPlatformMuted(false);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() || typeof window === 'undefined') return;
+
+    const sdk = window.CrazyGames?.SDK;
+    if (!sdk || (sdk.environment !== 'local' && sdk.environment !== 'crazygames')) return;
+
+    const gameplayActive = assetsLoaded && !showCharSelect && !showCards && !showAdPrompt && !adOverlay && !showResumingOverlay && !isGameOverScreen;
+
+    const syncGameplayState = async () => {
+      try {
+        await sdk.init();
+        if (gameplayActive) {
+          sdk.game.gameplayStart();
+        } else {
+          sdk.game.gameplayStop();
+        }
+      } catch (err) {
+        console.warn('CrazyGames gameplay state sync failed:', err);
+      }
+    };
+
+    syncGameplayState();
+  }, [assetsLoaded, showCharSelect, showCards, showAdPrompt, adOverlay, showResumingOverlay, isGameOverScreen]);
+
+  useEffect(() => {
+    if (Capacitor.isNativePlatform() || typeof window === 'undefined' || !assetsLoaded) return;
+
+    const sdk = window.CrazyGames?.SDK;
+    if (!sdk || (sdk.environment !== 'local' && sdk.environment !== 'crazygames')) return;
+
+    const stopLoading = async () => {
+      try {
+        await sdk.init();
+        sdk.game.loadingStop();
+      } catch (err) {
+        console.warn('CrazyGames loadingStop failed:', err);
+      }
+    };
+
+    stopLoading();
+  }, [assetsLoaded]);
 
   // --- 🔗 CAPACITOR NATIVE DEEP LINK INTERCEPTOR ---
   useEffect(() => {

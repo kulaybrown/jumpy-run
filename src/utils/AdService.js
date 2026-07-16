@@ -1,6 +1,29 @@
 import { Capacitor } from '@capacitor/core';
 import { AdMob, RewardAdPluginEvents } from '@capacitor-community/admob';
 
+let crazySdkInitPromise = null;
+
+const isCrazyGamesEnvironment = () => {
+  if (typeof window === 'undefined') return false;
+  const sdk = window.CrazyGames?.SDK;
+  return !!sdk && (sdk.environment === 'local' || sdk.environment === 'crazygames');
+};
+
+const ensureCrazyGamesInitialized = async () => {
+  if (!isCrazyGamesEnvironment()) return false;
+
+  if (!crazySdkInitPromise) {
+    crazySdkInitPromise = window.CrazyGames.SDK.init().catch((err) => {
+      console.error('CrazyGames SDK init failed:', err);
+      crazySdkInitPromise = null;
+      throw err;
+    });
+  }
+
+  await crazySdkInitPromise;
+  return true;
+};
+
 /**
  * Initializes the native AdMob SDK (Only runs on Android/iOS)
  */
@@ -13,6 +36,16 @@ export const initializeAds = async () => {
       console.error("AdMob Native Init Failed:", err);
     }
   } else {
+    try {
+      const initialized = await ensureCrazyGamesInitialized();
+      if (initialized) {
+        console.log('🎮 CrazyGames SDK initialized for web ads.');
+        return;
+      }
+    } catch (err) {
+      console.warn('CrazyGames SDK unavailable; using local web ad fallback.', err);
+    }
+
     console.log("🌐 Web Testing Environment: Skipping native AdMob init.");
   }
 };
@@ -92,11 +125,31 @@ export const showRewardedAd = async (onSuccess, onSkipped) => {
       console.error("Native AdMob Error:", err);
       onSkipped(); // Fallback if ad loading fails
     }
+  } else if (isCrazyGamesEnvironment()) {
+    try {
+      await ensureCrazyGamesInitialized();
+
+      window.CrazyGames.SDK.ad.requestAd('rewarded', {
+        adStarted: () => {
+          console.log('🎬 CrazyGames rewarded ad started.');
+        },
+        adFinished: () => {
+          console.log('🏅 CrazyGames rewarded ad finished.');
+          onSuccess();
+        },
+        adError: (errorData) => {
+          console.warn('⚠️ CrazyGames rewarded ad error:', errorData);
+          onSkipped();
+        }
+      });
+    } catch (err) {
+      console.error('CrazyGames rewarded ad request failed:', err);
+      onSkipped();
+    }
   } else {
-    // 🌐 WEB AD SIMULATION (For testing on GitHub Pages)
+    // 🌐 WEB AD SIMULATION (For non-CrazyGames domains)
     console.log("📺 Web Staging: Triggering mock ad countdown.");
-    
-    // Simulate your 5-second countdown timer, then trigger reward
+
     setTimeout(() => {
       onSuccess();
     }, 5000);
