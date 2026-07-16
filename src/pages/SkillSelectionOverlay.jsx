@@ -17,13 +17,13 @@ export default function SkillSelectionOverlay({ showCards, randomCards, onSelect
 
   return (
     <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-md z-30 p-4 animate-fade-in">
-      <div className="w-full max-w-xl md:max-w-2xl flex flex-col items-center relative">
+      <div className="w-full max-w-xl md:max-w-1xl flex flex-col items-center relative">
         
         {/* 📋 CHOPPED MIXEL-ART MILESTONE BANNER OVERLAY */}
         <div className="flex items-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated z-50 -mb-6 sm:-mb-9 translate-y-1 transform">
           <img src="/assets/banner/milestone-banner-left.png" alt="" className="h-full object-contain select-none pointer-events-none" />
-          <div className="h-full flex items-center justify-center px-6 sm:px-10 bg-[url('/assets/banner/milestone-banner-center.png')] bg-repeat-x bg-[length:auto_100%]">
-            <h2 className="text-xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap font-bungee [-webkit-text-stroke:2px_#000000]">
+          <div className="h-full flex items-center justify-center px-6 bg-[url('/assets/banner/milestone-banner-center.png')] bg-repeat-x bg-[length:auto_100%]">
+            <h2 className="text-xl sm:text-3xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap font-bungee [-webkit-text-stroke:2px_#000000]">
               MILESTONE REACHED!
             </h2>
           </div>
@@ -33,7 +33,7 @@ export default function SkillSelectionOverlay({ showCards, randomCards, onSelect
         {/* 📋 SCOREBOARD PANEL PIXEL-ART SANDWICH LAYOUT HOUSING */}
         <div className="w-full flex flex-col drop-shadow-[0_12px_24px_rgba(0,0,0,0.6)] image-render-pixelated relative">
           <img src="/assets/milestone-board-top.png" alt="" className="w-full object-contain select-none pointer-events-none" />
-          <div className="w-full bg-[url('/assets/milestone-board-center.png')] bg-repeat-y bg-[length:100%_auto] px-5 sm:px-8 md:px-10 pt-7 pb-3 flex flex-col items-center">
+          <div className="w-full bg-[url('/assets/milestone-board-center.png')] bg-repeat-y bg-[length:100%_auto] px-5 sm:px-8 md:px-10 pt-7 flex flex-col items-center">
             
             {/* 📊 SKILLS LIST SELECTION GRID */}
             <div className="grid grid-cols-3 gap-2.5 md:gap-4 w-full px-1 max-h-[220px] sm:max-h-[260px] overflow-y-auto">
@@ -52,7 +52,7 @@ export default function SkillSelectionOverlay({ showCards, randomCards, onSelect
                     >
                       <div
                         style={{ borderColor: lightBorderColor }}
-                        className="w-11 h-11 sm:w-14 sm:h-14 mb-1.5 border-2 bg-slate-950/20 rounded-lg flex items-center justify-center transition-transform group-hover:scale-105 shadow-inner overflow-hidden select-none pointer-events-none"
+                        className="w-11 h-11 sm:w-8 sm:h-8 mb-1.5 border-2 bg-slate-950/20 rounded-md flex items-center justify-center transition-transform group-hover:scale-105 shadow-inner overflow-hidden select-none pointer-events-none"
                       >
                         {isImageIcon ? (
                           <img

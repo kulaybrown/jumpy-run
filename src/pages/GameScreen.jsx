@@ -24,6 +24,10 @@ const nearCityImg = '/assets/near-bg.png';
 const MAX_DAILY_ADS = 3;
 const BACKGROUND_ZOOM = 1.1; 
 const HUD_UPDATE_INTERVAL = 100;
+const NATIVE_TARGET_FPS = 60;
+const NATIVE_DPR_CAP = 1;
+const NATIVE_MAX_PARTICLES = 50;
+const DESKTOP_MAX_PARTICLES = 180;
 
 // --- ANIMATION TRACKING ASSET FOLDER ROUTER ---
 const SPRITE_CONFIG_MAP = {
@@ -111,6 +115,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const [showAdPrompt, setShowAdPrompt] = useState(false);
   const [adOverlay, setAdOverlay] = useState(null); 
   const [adCountdown, setAdCountdown] = useState(5);
+  const [showResumingOverlay, setShowResumingOverlay] = useState(false);
   const [hasUsedAdRevive, setHasUsedAdRevive] = useState(false);
   const [shakeIntensity, setShakeIntensity] = useState(0);
   const [isGameOverScreen, setIsGameOverScreen] = useState(false);
@@ -121,10 +126,12 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   const [assetsLoaded, setAssetsLoaded] = useState(false);
   const [dailyAdsUsed, setDailyAdsUsed] = useState(0);
   const adRewardGrantedRef = useRef(false); 
+  const lossSequenceStartedRef = useRef(false);
+  const resumeOverlayTimerRef = useRef(null);
 
   // Refs for loop management
   const gamePausedRef = useRef(false);
-  const nextSkillMilestoneRef = useRef(400); 
+  const nextSkillMilestoneRef = useRef(800); 
 
   const shieldCountRef = useRef(0);
   const reviveCountRef = useRef(0);
@@ -163,14 +170,26 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     if (showCharSelect) {
       // 🎵 Play menu music continuously during character select and main menu phases
       playBGM('mainmenu-bgm');
-    } else if (isGameOverScreen) {
-      // 💀 Turn off active run background music instantly when the player dies
+    } else if (showAdPrompt || adOverlay || showResumingOverlay || isGameOverScreen) {
+      // 💀 Turn off active run background music while dead/ad flow overlays are active
       stopBGM();
     } else {
       // 🎮 Start run music automatically when a new run begins / restarts
       playBGM('game-bgm');
     }
-  }, [showCharSelect, assetsLoaded, isGameOverScreen]); // ✅ Hook dynamically reacts to death states seamlessly
+
+    return () => {
+      stopBGM();
+    };
+  }, [showCharSelect, assetsLoaded, showAdPrompt, adOverlay, showResumingOverlay, isGameOverScreen]); // ✅ Hook dynamically reacts to death/ad states seamlessly
+
+  useEffect(() => {
+    return () => {
+      if (resumeOverlayTimerRef.current) {
+        clearTimeout(resumeOverlayTimerRef.current);
+      }
+    };
+  }, []);
 
   // --- 🔗 CAPACITOR NATIVE DEEP LINK INTERCEPTOR ---
   useEffect(() => {
@@ -477,6 +496,20 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     }
   };
 
+  const startLossSequence = () => {
+    if (lossSequenceStartedRef.current) return;
+
+    lossSequenceStartedRef.current = true;
+    stopBGM();
+    playSFX('dead');
+  };
+
+  const enterGameOver = (finalScoreValue) => {
+    startLossSequence();
+    saveHighScore(finalScoreValue);
+    setIsGameOverScreen(true);
+  };
+
   // --- UNIFIED CREDENTIALS AUTHENTICATION HANDLER ---
   const handleEmailAuth = async (e) => {
     e.preventDefault();
@@ -543,7 +576,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     try {
       const isNative = Capacitor.isNativePlatform();
       const redirectUrl = isNative 
-        ? 'com.iamthelostworld.jumpyrun://login-callback' 
+        ? 'com.iamthelosworld.jumpyrun://login-callback' 
         : window.location.origin;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -587,6 +620,12 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     const isNative = Capacitor.isNativePlatform();
     // ⚡ Halve the rendering overhead dynamically on native devices to prevent stutter
     const finalCount = isNative ? Math.max(3, Math.floor(count * 0.5)) : count;
+    const maxParticles = isNative ? NATIVE_MAX_PARTICLES : DESKTOP_MAX_PARTICLES;
+
+    if (particlesRef.current.length > maxParticles) {
+      particlesRef.current.splice(0, particlesRef.current.length - maxParticles);
+    }
+
     for (let i = 0; i < finalCount; i++) {
       particlesRef.current.push({
         x,
@@ -727,6 +766,8 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         setDailyAdsUsed(internalCount);
         setHasUsedAdRevive(true);
         setAdOverlay(null);
+        setShowResumingOverlay(true);
+        lossSequenceStartedRef.current = false;
 
         obstaclesRef.current.length = 0;
         ufosRef.current.length = 0;
@@ -737,19 +778,34 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           name: invSkillDef ? invSkillDef.name : 'Invisibility',
           icon: invSkillDef ? invSkillDef.icon : '👻'
         };
-        gamePausedRef.current = false;
+
+        if (resumeOverlayTimerRef.current) {
+          clearTimeout(resumeOverlayTimerRef.current);
+        }
+
+        resumeOverlayTimerRef.current = setTimeout(() => {
+          setShowResumingOverlay(false);
+          gamePausedRef.current = false;
+          resumeOverlayTimerRef.current = null;
+        }, 650);
       },
       () => {
         setAdOverlay(null);
+        setShowResumingOverlay(false);
         handleSkipAdRevive();
       }
     );
   };
 
   const handleSkipAdRevive = () => {
+    if (resumeOverlayTimerRef.current) {
+      clearTimeout(resumeOverlayTimerRef.current);
+      resumeOverlayTimerRef.current = null;
+    }
+
+    setShowResumingOverlay(false);
     setShowAdPrompt(false);
-    saveHighScore(score);
-    setIsGameOverScreen(true);
+    enterGameOver(score);
   };
 
   const preloadGameplaySprites = (charId) => {
@@ -789,7 +845,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     activeSkillsRef.current = {};
     autoSkillNextTriggerRef.current = Date.now() + (AUTO_SKILL_INTERVAL_MAP[selectedChar.id]?.interval || Infinity);
     
-    nextSkillMilestoneRef.current = 400; 
+    nextSkillMilestoneRef.current = 800; 
 
     const startSkillIds = selectedChar.startSkills || [];
     startSkillIds.forEach((id) => {
@@ -818,6 +874,14 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     setHasUsedAdRevive(false);
     setIsGameOverScreen(false);
     setShowAdPrompt(false);
+    setShowResumingOverlay(false);
+    lossSequenceStartedRef.current = false;
+
+    if (resumeOverlayTimerRef.current) {
+      clearTimeout(resumeOverlayTimerRef.current);
+      resumeOverlayTimerRef.current = null;
+    }
+
     gamePausedRef.current = false;
   };
 
@@ -829,10 +893,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     const logicalWidth = 800;
     const logicalHeight = 400;
     
-    const dpr = Math.min(window.devicePixelRatio || 1, Capacitor.isNativePlatform() ? 1.5 : 2);
+    const isNativeRuntime = Capacitor.isNativePlatform();
+    const dpr = Math.min(window.devicePixelRatio || 1, isNativeRuntime ? NATIVE_DPR_CAP : 2);
     const viewportWidth = canvas.clientWidth || logicalWidth;
     const viewportHeight = canvas.clientHeight || logicalHeight;
-    const scale = Math.max(viewportWidth / logicalWidth, viewportHeight / logicalHeight);
+    const scale = Math.min(viewportWidth / logicalWidth, viewportHeight / logicalHeight);
     const offsetX = (viewportWidth - (logicalWidth * scale)) / 2;
     const offsetY = (viewportHeight - (logicalHeight * scale)) / 2;
 
@@ -856,7 +921,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
     let lastTime = performance.now();
     let lastHudUpdateTime = lastTime;
-    const fpsInterval = 1000 / 60;
+    const fpsInterval = 1000 / (isNativeRuntime ? NATIVE_TARGET_FPS : 60);
 
     let prevActiveIdsStr = '';
     let lastLoggedAction = '';
@@ -1011,7 +1076,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
 
         ctx.imageSmoothingEnabled = layerIndex !== 2;
-        ctx.imageSmoothingQuality = 'high';
+        if (!isNativeRuntime) {
+          ctx.imageSmoothingQuality = 'high';
+        }
 
         if (scaledWidth > 0) {
           const drawX = Math.round(layer.x);
@@ -1023,7 +1090,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       ctx.imageSmoothingEnabled = false;
 
-      bgEffects.render(ctx, Math.floor(localDistance));
+      bgEffects.render(ctx, Math.floor(localDistance), isNativeRuntime);
 
       ctx.save();
       const playerCenterX = player.x + player.width / 2;
@@ -1119,32 +1186,34 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       }
 
       ctx.save();
-      const characterHasActiveSkill = currentActive.length > 0;
       const auraPulseFactor = 1 + Math.sin(now / 140) * 0.15;
       const px = player.x + player.width / 2;
       const py = player.y + player.height / 2;
       const auraMaxRadius = player.width * 0.85;
 
-      let assignedAuraStyle = hexToRgba(player.color, 0.14); 
-      if (isSkillActive('sprint')) assignedAuraStyle = 'rgba(239, 68, 68, 0.45)'; 
-      else if (isSkillActive('fly') || isSkillActive('gravity')) assignedAuraStyle = 'rgba(56, 189, 248, 0.35)'; 
-      else if (isSkillActive('invisible')) assignedAuraStyle = 'rgba(148, 163, 184, 0.15)'; 
-      else if (characterHasActiveSkill) assignedAuraStyle = 'rgba(34, 211, 238, 0.35)'; 
+      let assignedAuraStyle = null;
+      if (isSkillActive('sprint')) assignedAuraStyle = 'rgba(239, 68, 68, 0.45)';
+      else if (isSkillActive('sonic')) assignedAuraStyle = 'rgba(34, 211, 238, 0.35)';
 
-      const auraGradient = ctx.createRadialGradient(px, py, auraMaxRadius * 0.2, px, py, auraMaxRadius * auraPulseFactor);
-      auraGradient.addColorStop(0, assignedAuraStyle);
-      auraGradient.addColorStop(0.6, hexToRgba(player.color, 0.05));
-      auraGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-
-      ctx.beginPath();
-      ctx.arc(px, py, auraMaxRadius * auraPulseFactor, 0, Math.PI * 2);
-      ctx.fillStyle = auraGradient;
-      ctx.fill();
+      if (assignedAuraStyle) {
+        ctx.beginPath();
+        ctx.arc(px, py, auraMaxRadius * auraPulseFactor, 0, Math.PI * 2);
+        if (isNativeRuntime) {
+          ctx.fillStyle = assignedAuraStyle;
+        } else {
+          const auraGradient = ctx.createRadialGradient(px, py, auraMaxRadius * 0.2, px, py, auraMaxRadius * auraPulseFactor);
+          auraGradient.addColorStop(0, assignedAuraStyle);
+          auraGradient.addColorStop(0.6, hexToRgba(player.color, 0.05));
+          auraGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = auraGradient;
+        }
+        ctx.fill();
+      }
 
       // ⚡ Dynamic Mobile Throttling: Reduces particle emissions dynamically to save CPU cycles on mobile WebView
-      const isNative = Capacitor.isNativePlatform();
-      const baseChance = isNative ? 0.15 : 0.3;
-      const sprintChance = isNative ? 0.45 : 0.85;
+      const isNative = isNativeRuntime;
+      const baseChance = isNative ? 0.1 : 0.3;
+      const sprintChance = isNative ? 0.32 : 0.85;
 
       if (Math.random() < baseChance || (isSkillActive('sprint') && Math.random() < sprintChance)) {
         const isSprinting = isSkillActive('sprint');
@@ -1155,11 +1224,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           vy: isSprinting ? (Math.random() - 0.5) * 4 : -1 - Math.random() * 2,  
           radius: isSprinting ? Math.random() * 3.5 + 1.5 : Math.random() * 2 + 1,
           alpha: 1.0,
-          color: isSprinting ? (Math.random() > 0.4 ? '#ef4444' : '#f97316') : (characterHasActiveSkill ? '#22d3ee' : player.color)
+          color: isSprinting ? (Math.random() > 0.4 ? '#ef4444' : '#f97316') : player.color
         });
       }
 
-      if (isSkillActive('sprint') && Math.random() < (isNative ? 0.2 : 0.4)) {
+      if (isSkillActive('sprint') && Math.random() < (isNative ? 0.12 : 0.4)) {
         particlesRef.current.push({
           x: player.x + player.width + 10,
           y: player.y + Math.random() * player.height,
@@ -1180,37 +1249,44 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         const cy = player.y + player.height / 2;
         const baseAlpha = 0.15 + shieldCountRef.current * 0.06;
 
-        const gradient = ctx.createRadialGradient(cx, cy, shieldRadius * 0.3, cx, cy, shieldRadius);
-        gradient.addColorStop(0, hexToRgba(shieldColor, 0));
-        gradient.addColorStop(0.7, hexToRgba(shieldColor, baseAlpha));
-        gradient.addColorStop(1, hexToRgba(shieldColor, 0));
+        if (!isNativeRuntime) {
+          const gradient = ctx.createRadialGradient(cx, cy, shieldRadius * 0.3, cx, cy, shieldRadius);
+          gradient.addColorStop(0, hexToRgba(shieldColor, 0));
+          gradient.addColorStop(0.7, hexToRgba(shieldColor, baseAlpha));
+          gradient.addColorStop(1, hexToRgba(shieldColor, 0));
 
-        ctx.beginPath();
-        ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
-        ctx.fill();
+          ctx.beginPath();
+          ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+        }
 
         ctx.beginPath();
         ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
         ctx.strokeStyle = hexToRgba(shieldColor, 0.4 + shieldCountRef.current * 0.1);
-        ctx.lineWidth = 2; ctx.shadowBlur = 12; ctx.shadowColor = shieldColor;
+        ctx.lineWidth = 2;
+        if (!isNativeRuntime) {
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = shieldColor;
+        }
         ctx.stroke();
         ctx.restore();
       }
 
-      if (isSkillActive('sprint') && sprintTrailsRef.current.length > 0) {
+      if (!isNativeRuntime && isSkillActive('sprint') && sprintTrailsRef.current.length > 0) {
         sprintTrailsRef.current.forEach((trail, idx) => {
           ctx.save();
           ctx.globalAlpha = 0.07 * (idx + 1);
-          ctx.shadowBlur = 12;
-          ctx.shadowColor = '#ef4444'; 
+          if (!isNativeRuntime) {
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#ef4444';
+          }
 
           const trailKey = `${spriteConfig.folder}_${trail.action}_${trail.frameIndex}`;
           let trailTexture = gameplaySpriteCacheRef.current[trailKey];
           
           if (trail.action === 'fly') {
             ctx.translate(trail.x + player.width / 2, trail.y + player.height / 2);
-            ctx.rotate((45 * Math.PI) / 180);
             if (trailTexture && trailTexture.complete && trailTexture.naturalWidth !== 0) {
               ctx.drawImage(trailTexture, -player.width / 2, -player.height / 2, player.width, player.height);
             } else {
@@ -1230,7 +1306,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       }
 
       ctx.save();
-      ctx.shadowBlur = 15; ctx.shadowOffsetY = 6; ctx.shadowOffsetX = 2;
+      if (!isNativeRuntime) {
+        ctx.shadowBlur = 15;
+        ctx.shadowOffsetY = 6;
+        ctx.shadowOffsetX = 2;
+      }
       
       if (isSkillActive('invisible')) {
         ctx.globalAlpha = 0.4;
@@ -1250,7 +1330,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       if (runtimeAction === 'fly') {
         ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
-        ctx.rotate((45 * Math.PI) / 180);
         
         if (loadedFrameTexture && loadedFrameTexture.complete && loadedFrameTexture.naturalWidth !== 0) {
           ctx.drawImage(loadedFrameTexture, -player.width / 2, -player.height / 2, player.width, player.height);
@@ -1300,8 +1379,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
 
         ctx.save();
-        ctx.shadowBlur = 20;
-        ctx.shadowColor = '#22d3ee';
+        if (!isNativeRuntime) {
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = '#22d3ee';
+        }
         
         ctx.strokeStyle = `rgba(34, 211, 238, ${waveOpacity})`;
         ctx.lineWidth = 5;
@@ -1309,11 +1390,13 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.arc(wave.x, wave.y, wave.radius, -Math.PI / 2, Math.PI / 2);
         ctx.stroke();
 
-        ctx.strokeStyle = `rgba(14, 165, 233, ${waveOpacity * 0.4})`;
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.arc(wave.x, wave.y, Math.max(5, wave.radius - 25), -Math.PI / 2, Math.PI / 2);
-        ctx.stroke();
+        if (!isNativeRuntime) {
+          ctx.strokeStyle = `rgba(14, 165, 233, ${waveOpacity * 0.4})`;
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(wave.x, wave.y, Math.max(5, wave.radius - 25), -Math.PI / 2, Math.PI / 2);
+          ctx.stroke();
+        }
         ctx.restore();
       }
 
@@ -1328,9 +1411,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
 
         ctx.save();
-        ctx.shadowBlur = 25;
-        ctx.shadowColor = exp.color || '#fbbf24';
-        ctx.globalCompositeOperation = 'screen'; 
+        if (!isNativeRuntime) {
+          ctx.shadowBlur = 25;
+          ctx.shadowColor = exp.color || '#fbbf24';
+          ctx.globalCompositeOperation = 'screen';
+        }
 
         ctx.strokeStyle = exp.color === '#ef4444' 
           ? `rgba(239, 68, 68, ${exp.alpha})` 
@@ -1346,15 +1431,17 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         ctx.arc(exp.x, exp.y, Math.max(2, exp.radius * 0.65), 0, Math.PI * 2);
         ctx.stroke();
 
-        const fillGradient = ctx.createRadialGradient(exp.x, exp.y, 2, exp.x, exp.y, exp.radius);
-        fillGradient.addColorStop(0, `rgba(255, 255, 255, ${exp.alpha * 0.8})`);
-        fillGradient.addColorStop(0.3, exp.color === '#ef4444' ? `rgba(220, 38, 38, ${exp.alpha * 0.4})` : `rgba(249, 115, 22, ${exp.alpha * 0.4})`);
-        fillGradient.addColorStop(1, 'rgba(0,0,0,0)');
-        
-        ctx.beginPath();
-        ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
-        ctx.fillStyle = fillGradient;
-        ctx.fill();
+        if (!isNativeRuntime) {
+          const fillGradient = ctx.createRadialGradient(exp.x, exp.y, 2, exp.x, exp.y, exp.radius);
+          fillGradient.addColorStop(0, `rgba(255, 255, 255, ${exp.alpha * 0.8})`);
+          fillGradient.addColorStop(0.3, exp.color === '#ef4444' ? `rgba(220, 38, 38, ${exp.alpha * 0.4})` : `rgba(249, 115, 22, ${exp.alpha * 0.4})`);
+          fillGradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+          ctx.beginPath();
+          ctx.arc(exp.x, exp.y, exp.radius, 0, Math.PI * 2);
+          ctx.fillStyle = fillGradient;
+          ctx.fill();
+        }
         ctx.restore();
       }
 
@@ -1416,11 +1503,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           const dailyAdsWatched = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10);
           if (!hasUsedAdRevive && dailyAdsWatched < MAX_DAILY_ADS) {
             gamePausedRef.current = true;
+            startLossSequence();
             setShowAdPrompt(true);
           } else {
             isGameOver = true;
-            saveHighScore(Math.floor(localScore));
-            setIsGameOverScreen(true);
+            enterGameOver(Math.floor(localScore));
           }
           return;
         }
@@ -1543,11 +1630,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
           const dailyAdsWatched = parseInt(localStorage.getItem('runner_daily_ads_count') || '0', 10);
           if (!hasUsedAdRevive && dailyAdsWatched < MAX_DAILY_ADS) {
             gamePausedRef.current = true;
+            startLossSequence();
             setShowAdPrompt(true);
           } else {
             isGameOver = true;
-            saveHighScore(Math.floor(localScore));
-            setIsGameOverScreen(true);
+            enterGameOver(Math.floor(localScore));
           }
           return;
         }
@@ -1555,7 +1642,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       }
 
       coinTimer++;
-      const currentCoinInterval = isSkillActive('lucky') ? 18 : 50; 
+      const currentCoinInterval = isSkillActive('lucky') ? 18 : 50;
       if (coinTimer > currentCoinInterval) {
         coinTimer = 0;
         const patternSelector = Math.random();
@@ -1618,6 +1705,11 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         if (p.alpha <= 0) particlesRef.current.splice(i, 1);
       }
 
+      const maxParticles = isNativeRuntime ? NATIVE_MAX_PARTICLES : DESKTOP_MAX_PARTICLES;
+      if (particlesRef.current.length > maxParticles) {
+        particlesRef.current.splice(0, particlesRef.current.length - maxParticles);
+      }
+
       const baseDistanceStep = isSkillActive('sprint') ? 0.4 : 0.15;
       localDistance += baseDistanceStep * gameSpeedMultiplier;
 
@@ -1632,7 +1724,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       }
 
       if (localScore >= nextSkillMilestoneRef.current) {
-        nextSkillMilestoneRef.current += 400; 
+        nextSkillMilestoneRef.current += 800; 
         triggerCardSelection();
       }
 
@@ -1769,6 +1861,14 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         adOverlay={adOverlay} 
         adCountdown={adCountdown} 
       />
+
+      {showResumingOverlay && (
+        <div className="absolute inset-0 z-[65] flex items-center justify-center pointer-events-none">
+          <div className="px-4 py-2 rounded-lg bg-slate-900/85 border border-cyan-300/50 shadow-lg">
+            <p className="text-cyan-100 text-xs sm:text-sm font-black tracking-wide uppercase">Resuming...</p>
+          </div>
+        </div>
+      )}
 
       {import.meta.env.DEV && (
         <div className="absolute top-2 right-2 z-[70] bg-black/70 text-white text-[10px] font-mono px-2 py-1 rounded border border-white/20 pointer-events-none">

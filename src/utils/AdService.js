@@ -24,24 +24,42 @@ export const showRewardedAd = async (onSuccess, onSkipped) => {
   if (Capacitor.isNativePlatform()) {
     // 📱 NATIVE ADMOB FOR ANDROID
     let settled = false;
+    let rewardEarned = false;
+    let adDismissed = false;
 
     try {
       const listenerHandles = await Promise.all([
         AdMob.addListener(RewardAdPluginEvents.Rewarded, (reward) => {
           if (settled) return;
-          settled = true;
+          rewardEarned = true;
           console.log("🏅 Ad completed natively! Reward:", reward);
-          void Promise.allSettled(listenerHandles.map((handle) => handle.remove())).finally(() => {
-            onSuccess();
-          });
+
+          // Some native SDK flows emit Rewarded before the ad UI is dismissed.
+          // Resume gameplay only after both reward and dismiss have been observed.
+          if (adDismissed) {
+            settled = true;
+            void Promise.allSettled(listenerHandles.map((handle) => handle.remove())).finally(() => {
+              onSuccess();
+            });
+          }
         }),
         AdMob.addListener(RewardAdPluginEvents.Dismissed, () => {
           if (settled) return;
-          settled = true;
-          console.log("❌ Native rewarded ad dismissed before reward.");
-          void Promise.allSettled(listenerHandles.map((handle) => handle.remove())).finally(() => {
-            onSkipped();
-          });
+          adDismissed = true;
+
+          if (rewardEarned) {
+            settled = true;
+            console.log("✅ Native rewarded ad dismissed after reward.");
+            void Promise.allSettled(listenerHandles.map((handle) => handle.remove())).finally(() => {
+              onSuccess();
+            });
+          } else {
+            settled = true;
+            console.log("❌ Native rewarded ad dismissed before reward.");
+            void Promise.allSettled(listenerHandles.map((handle) => handle.remove())).finally(() => {
+              onSkipped();
+            });
+          }
         }),
         AdMob.addListener(RewardAdPluginEvents.FailedToLoad, (error) => {
           if (settled) return;

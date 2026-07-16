@@ -87,7 +87,7 @@ export class BackgroundEffects {
   /**
    * Updates coordinates and draws background assets using dynamic distance metrics.
    */
-  render(ctx, currentDistance) {
+  render(ctx, currentDistance, lowEffectsMode = false) {
     // --- EVENT A: SUPERMAN LOGIC ---
     if (currentDistance >= 500 && this.superman.state === 'WAITING') {
       this.superman.state = 'FLYING';
@@ -172,24 +172,28 @@ export class BackgroundEffects {
         
         // ⚡ --- HIGH-INTENSITY BRIGHT WHITE/YELLOW TRACTOR BEAM GRADIENT --- ⚡
         ctx.save();
-        ctx.globalCompositeOperation = 'screen'; // Enables glow blending over city elements
-        
+
         const emitterX = this.ufo.x + this.ufo.width / 2;
-        
+
         // Anchor point tucked directly inside the saucer core (75% height) to mask asset empty space transparency
-        const beamAnchorY = this.ufo.y + (currentUfoHeight * 0.75); 
-        
-        const beamGlow = ctx.createLinearGradient(
-          emitterX, beamAnchorY,
-          emitterX, this.groundY
-        );
-        
-        beamGlow.addColorStop(0, 'rgba(255, 255, 255, 0.75)');   // Stark white hot ray core inside emitter source
-        beamGlow.addColorStop(0.2, 'rgba(254, 240, 138, 0.45)'); // Electric neon light-yellow transition hull
-        beamGlow.addColorStop(0.75, 'rgba(234, 179, 8, 0.22)');   // Warm burning secondary laser yellow body
-        beamGlow.addColorStop(1, 'rgba(234, 179, 8, 0.02)');      // Ground falloff fade
-        
-        ctx.fillStyle = beamGlow;
+        const beamAnchorY = this.ufo.y + (currentUfoHeight * 0.75);
+
+        if (lowEffectsMode) {
+          ctx.fillStyle = 'rgba(254, 240, 138, 0.22)';
+        } else {
+          ctx.globalCompositeOperation = 'screen'; // Enables glow blending over city elements
+          const beamGlow = ctx.createLinearGradient(
+            emitterX, beamAnchorY,
+            emitterX, this.groundY
+          );
+
+          beamGlow.addColorStop(0, 'rgba(255, 255, 255, 0.75)');   // Stark white hot ray core inside emitter source
+          beamGlow.addColorStop(0.2, 'rgba(254, 240, 138, 0.45)'); // Electric neon light-yellow transition hull
+          beamGlow.addColorStop(0.75, 'rgba(234, 179, 8, 0.22)');   // Warm burning secondary laser yellow body
+          beamGlow.addColorStop(1, 'rgba(234, 179, 8, 0.02)');      // Ground falloff fade
+          ctx.fillStyle = beamGlow;
+        }
+
         ctx.beginPath();
         ctx.moveTo(emitterX, beamAnchorY);
         ctx.lineTo(this.ufo.x - 50, this.groundY);
