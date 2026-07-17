@@ -576,7 +576,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     try {
       const isNative = Capacitor.isNativePlatform();
       const redirectUrl = isNative 
-        ? 'com.iamthelosworld.jumpyrun://login-callback' 
+        ? 'com.iamthelostworld.jumpyrun://login-callback' 
         : window.location.origin;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
@@ -618,7 +618,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
   const spawnParticles = (x, y, color, count = 8) => {
     const isNative = Capacitor.isNativePlatform();
-    // ⚡ Halve the rendering overhead dynamically on native devices to prevent stutter
     const finalCount = isNative ? Math.max(3, Math.floor(count * 0.5)) : count;
     const maxParticles = isNative ? NATIVE_MAX_PARTICLES : DESKTOP_MAX_PARTICLES;
 
@@ -663,6 +662,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       playSFX('explosion');
 
       obstacles.forEach(obs => {
+        if (obs.smashed) return;
         const cx = obs.x + obs.width / 2;
         const cy = obs.y + obs.height / 2;
         
@@ -684,6 +684,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       obstacles.length = 0;
       
       ufosRef.current.forEach(ufo => {
+        if (ufo.smashed) return;
         const cx = ufo.x + ufo.width / 2;
         const cy = ufo.y + ufo.height / 2;
         
@@ -757,7 +758,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     setShowAdPrompt(false);
     setAdOverlay('loading');
 
-    // ✅ Integrates native AdMob wrapper seamlessly, falling back to desktop simulation automatically
     showRewardedAd(
       () => {
         adRewardGrantedRef.current = true;
@@ -904,15 +904,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     canvas.width = viewportWidth * dpr;
     canvas.height = viewportHeight * dpr;
 
-    ctx.setTransform(
-      scale * dpr,
-      0,
-      0,
-      scale * dpr,
-      offsetX * dpr,
-      offsetY * dpr
-    );
-
     let animationFrameId;
     let localScore = score; 
     let localDistance = distance; 
@@ -1037,6 +1028,14 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      let skyColor = bgEffects.getSkyColor(Math.floor(localDistance));
+      if (isSkillActive('slow')) skyColor = '#1e293b'; 
+      else if (isSkillActive('gravity')) skyColor = '#2e1065';
+
+      ctx.fillStyle = skyColor;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
       ctx.setTransform(
         scale * dpr,
         0,
@@ -1057,9 +1056,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       const rawMultiplier = 1 + Math.floor(localDistance / 200) * 0.05;
       const gameSpeedMultiplier = Math.min(rawMultiplier, 3.0); 
 
-      if (isSkillActive('slow')) ctx.fillStyle = '#1e293b'; 
-      else if (isSkillActive('gravity')) ctx.fillStyle = '#2e1065'; 
-      else ctx.fillStyle = bgEffects.getSkyColor(Math.floor(localDistance)); 
+      ctx.fillStyle = skyColor;
       ctx.fillRect(0, 0, 800, 400);
 
       bgLayersRef.current.forEach((layer, layerIndex) => {
@@ -1067,42 +1064,28 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         layer.x -= dynamicLayerSpeed * gameSpeedMultiplier;
         
         const imgHeight = 400 * BACKGROUND_ZOOM; 
-        const scale = imgHeight / layer.img.height;
-        const scaledWidth = layer.img.width * scale;
+        const layerScale = imgHeight / layer.img.height;
+        const scaledWidth = layer.img.width * layerScale;
         const yOffset = 400 - imgHeight;
 
-        if (layer.x <= -scaledWidth) {
-          layer.x += scaledWidth; 
-        }
+        if (scaledWidth <= 0) return;
+
+        while (layer.x <= -scaledWidth) layer.x += scaledWidth;
+        while (layer.x > 0) layer.x -= scaledWidth;
 
         ctx.imageSmoothingEnabled = layerIndex !== 2;
         if (!isNativeRuntime) {
           ctx.imageSmoothingQuality = 'high';
         }
 
-        if (scaledWidth > 0) {
-          const drawX = Math.round(layer.x);
-          const tileW = Math.ceil(scaledWidth) + 1;
+        const tileW = Math.ceil(scaledWidth) + 2;
+        for (let drawX = layer.x - scaledWidth; drawX < 800 + (scaledWidth * 2); drawX += scaledWidth) {
           ctx.drawImage(layer.img, drawX, yOffset, tileW, imgHeight);
-          ctx.drawImage(layer.img, drawX + Math.round(scaledWidth), yOffset, tileW, imgHeight);
         }
       });
 
       ctx.imageSmoothingEnabled = false;
-
       bgEffects.render(ctx, Math.floor(localDistance), isNativeRuntime);
-
-      ctx.save();
-      const playerCenterX = player.x + player.width / 2;
-      const heightAboveGround = groundY - (player.y + player.height);
-      const shadowScaleFactor = Math.max(0.3, 1 - heightAboveGround / 160);
-      const shadowAlphaFactor = Math.max(0, 0.35 - heightAboveGround / 240);
-      
-      ctx.beginPath();
-      ctx.ellipse(playerCenterX, groundY, player.width * 0.55 * shadowScaleFactor, player.width * 0.14 * shadowScaleFactor, 0, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlphaFactor})`;
-      ctx.fill();
-      ctx.restore();
 
       if (isSkillActive('shrink')) {
         player.width = 32; player.height = 32;
@@ -1183,189 +1166,6 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         }
       } else {
         sprintTrailsRef.current = [];
-      }
-
-      ctx.save();
-      const auraPulseFactor = 1 + Math.sin(now / 140) * 0.15;
-      const px = player.x + player.width / 2;
-      const py = player.y + player.height / 2;
-      const auraMaxRadius = player.width * 0.85;
-
-      let assignedAuraStyle = null;
-      if (isSkillActive('sprint')) assignedAuraStyle = 'rgba(239, 68, 68, 0.45)';
-      else if (isSkillActive('sonic')) assignedAuraStyle = 'rgba(34, 211, 238, 0.35)';
-
-      if (assignedAuraStyle) {
-        ctx.beginPath();
-        ctx.arc(px, py, auraMaxRadius * auraPulseFactor, 0, Math.PI * 2);
-        if (isNativeRuntime) {
-          ctx.fillStyle = assignedAuraStyle;
-        } else {
-          const auraGradient = ctx.createRadialGradient(px, py, auraMaxRadius * 0.2, px, py, auraMaxRadius * auraPulseFactor);
-          auraGradient.addColorStop(0, assignedAuraStyle);
-          auraGradient.addColorStop(0.6, hexToRgba(player.color, 0.05));
-          auraGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
-          ctx.fillStyle = auraGradient;
-        }
-        ctx.fill();
-      }
-
-      // ⚡ Dynamic Mobile Throttling: Reduces particle emissions dynamically to save CPU cycles on mobile WebView
-      const isNative = isNativeRuntime;
-      const baseChance = isNative ? 0.1 : 0.3;
-      const sprintChance = isNative ? 0.32 : 0.85;
-
-      if (Math.random() < baseChance || (isSkillActive('sprint') && Math.random() < sprintChance)) {
-        const isSprinting = isSkillActive('sprint');
-        particlesRef.current.push({
-          x: player.x + (isSprinting ? 5 : Math.random() * player.width),
-          y: player.y + (isSprinting ? Math.random() * player.height : player.height - Math.random() * 10),
-          vx: isSprinting ? -7 - (Math.random() * 5) : -3 - (Math.random() * 2), 
-          vy: isSprinting ? (Math.random() - 0.5) * 4 : -1 - Math.random() * 2,  
-          radius: isSprinting ? Math.random() * 3.5 + 1.5 : Math.random() * 2 + 1,
-          alpha: 1.0,
-          color: isSprinting ? (Math.random() > 0.4 ? '#ef4444' : '#f97316') : player.color
-        });
-      }
-
-      if (isSkillActive('sprint') && Math.random() < (isNative ? 0.12 : 0.4)) {
-        particlesRef.current.push({
-          x: player.x + player.width + 10,
-          y: player.y + Math.random() * player.height,
-          vx: -13 - Math.random() * 7,
-          vy: 0,
-          radius: Math.random() * 1.5 + 0.5,
-          alpha: 0.65,
-          color: '#ffffff'
-        });
-      }
-      ctx.restore();
-
-      if (shieldCountRef.current > 0) {
-        ctx.save();
-        const shieldRadius = 26 + (shieldCountRef.current * 4);
-        const shieldColor = SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee';
-        const cx = player.x + player.width / 2;
-        const cy = player.y + player.height / 2;
-        const baseAlpha = 0.15 + shieldCountRef.current * 0.06;
-
-        if (!isNativeRuntime) {
-          const gradient = ctx.createRadialGradient(cx, cy, shieldRadius * 0.3, cx, cy, shieldRadius);
-          gradient.addColorStop(0, hexToRgba(shieldColor, 0));
-          gradient.addColorStop(0.7, hexToRgba(shieldColor, baseAlpha));
-          gradient.addColorStop(1, hexToRgba(shieldColor, 0));
-
-          ctx.beginPath();
-          ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
-          ctx.fillStyle = gradient;
-          ctx.fill();
-        }
-
-        ctx.beginPath();
-        ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
-        ctx.strokeStyle = hexToRgba(shieldColor, 0.4 + shieldCountRef.current * 0.1);
-        ctx.lineWidth = 2;
-        if (!isNativeRuntime) {
-          ctx.shadowBlur = 12;
-          ctx.shadowColor = shieldColor;
-        }
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      if (!isNativeRuntime && isSkillActive('sprint') && sprintTrailsRef.current.length > 0) {
-        sprintTrailsRef.current.forEach((trail, idx) => {
-          ctx.save();
-          ctx.globalAlpha = 0.07 * (idx + 1);
-          if (!isNativeRuntime) {
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = '#ef4444';
-          }
-
-          const trailKey = `${spriteConfig.folder}_${trail.action}_${trail.frameIndex}`;
-          let trailTexture = gameplaySpriteCacheRef.current[trailKey];
-          
-          if (trail.action === 'fly') {
-            ctx.translate(trail.x + player.width / 2, trail.y + player.height / 2);
-            if (trailTexture && trailTexture.complete && trailTexture.naturalWidth !== 0) {
-              ctx.drawImage(trailTexture, -player.width / 2, -player.height / 2, player.width, player.height);
-            } else {
-              ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
-              ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
-            }
-          } else {
-            if (trailTexture && trailTexture.complete && trailTexture.naturalWidth !== 0) {
-              ctx.drawImage(trailTexture, trail.x, trail.y, player.width, player.height);
-            } else {
-              ctx.fillStyle = 'rgba(239, 68, 68, 0.4)';
-              ctx.fillRect(trail.x, trail.y, player.width, player.height);
-            }
-          }
-          ctx.restore();
-        });
-      }
-
-      ctx.save();
-      if (!isNativeRuntime) {
-        ctx.shadowBlur = 15;
-        ctx.shadowOffsetY = 6;
-        ctx.shadowOffsetX = 2;
-      }
-      
-      if (isSkillActive('invisible')) {
-        ctx.globalAlpha = 0.4;
-      }
-
-      const textureKey = `${spriteConfig.folder}_${runtimeAction}_${spriteFrameIndex}`;
-      let loadedFrameTexture = gameplaySpriteCacheRef.current[textureKey];
-
-      if (!loadedFrameTexture) {
-        loadedFrameTexture = new Image();
-        loadedFrameTexture.src = `/assets/animations/${spriteConfig.folder}/${runtimeAction}/${spriteFrameIndex}.png`;
-        loadedFrameTexture.onerror = () => {
-          loadedFrameTexture.src = `/assets/animations/${spriteConfig.folder}/idle/0.png`;
-        };
-        gameplaySpriteCacheRef.current[textureKey] = loadedFrameTexture;
-      }
-
-      if (runtimeAction === 'fly') {
-        ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
-        
-        if (loadedFrameTexture && loadedFrameTexture.complete && loadedFrameTexture.naturalWidth !== 0) {
-          ctx.drawImage(loadedFrameTexture, -player.width / 2, -player.height / 2, player.width, player.height);
-        } else {
-          ctx.fillStyle = player.color;
-          ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
-        }
-      } else {
-        if (loadedFrameTexture && loadedFrameTexture.complete && loadedFrameTexture.naturalWidth !== 0) {
-          ctx.drawImage(loadedFrameTexture, player.x, player.y, player.width, player.height);
-        } else {
-          ctx.fillStyle = player.color;
-          ctx.fillRect(player.x, player.y, player.width, player.height);
-        }
-      }
-      ctx.restore();
-
-      // 🔊 --- SONIC WAVE BLAST --- 🔊
-      if (isSkillActive('sonic')) {
-        sonicTimer++;
-        if (sonicTimer > 180) { 
-          triggerShake(5); 
-          playSFX('sonic-blast');
-
-          sonicWavesRef.current.push({
-            x: player.x + player.width - 10,
-            y: player.y + player.height / 2,
-            radius: 15,
-            maxRadius: 360,
-            speed: 14
-          });
-
-          if (obstacles.length > 0) { spawnParticles(obstacles[0].x, obstacles[0].y, '#ef4444'); obstacles.splice(0, 1); }
-          if (ufos.length > 0) { spawnParticles(ufos[0].x, ufos[0].y, '#38bdf8'); ufos.splice(0, 1); }
-          sonicTimer = 0;
-        }
       }
 
       for (let w = sonicWavesRef.current.length - 1; w >= 0; w--) {
@@ -1456,6 +1256,31 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       for (let i = ufos.length - 1; i >= 0; i--) {
         const ufo = ufos[i];
+        
+        if (ufo.smashed) {
+          ufo.x += ufo.vx || 0;
+          ufo.y += ufo.vy || 0;
+          ufo.vy += 0.4;
+          ufo.rotation = (ufo.rotation || 0) + (ufo.rotSpeed || 0.1);
+          
+          ctx.save();
+          ctx.translate(ufo.x + ufo.width / 2, ufo.y + ufo.height / 2);
+          ctx.rotate(ufo.rotation);
+          ufo.alpha = Math.max(0, (ufo.alpha !== undefined ? ufo.alpha : 1) - 0.04);
+          ctx.globalAlpha = ufo.alpha;
+          
+          ctx.fillStyle = '#38bdf8';
+          ctx.beginPath(); ctx.arc(0, -ufo.height/6, ufo.width/4, Math.PI, 0); ctx.fill();
+          ctx.fillStyle = '#94a3b8';
+          ctx.beginPath(); ctx.ellipse(0, 0, ufo.width/2, ufo.height/3, 0, 0, Math.PI * 2); ctx.fill();
+          ctx.restore();
+          
+          if (ufo.x + ufo.width < -50 || ufo.y > 450 || ufo.alpha <= 0) {
+            ufos.splice(i, 1);
+          }
+          continue;
+        }
+
         ufo.x -= (isSkillActive('slow') ? ufo.speed * 0.5 : ufo.speed) * gameSpeedMultiplier;
         ufo.pulseAngle += 0.1;
 
@@ -1481,12 +1306,26 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
           if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(ufo.x, ufo.y, '#38bdf8'); 
-            ufos.splice(i, 1); 
+            ufo.smashed = true;
+            ufo.vx = (Math.random() * 4) - 1;
+            ufo.vy = -(Math.random() * 5 + 3);
+            ufo.rotation = 0;
+            ufo.rotSpeed = (Math.random() - 0.5) * 0.4;
             continue; 
           }
           
           triggerShake(8); 
-          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(ufo.x, ufo.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); ufos.splice(i, 1); continue; }
+          if (shieldCountRef.current > 0) { 
+            shieldCountRef.current -= 1; 
+            setShieldCount(shieldCountRef.current); 
+            spawnParticles(ufo.x, ufo.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); 
+            ufo.smashed = true;
+            ufo.vx = (Math.random() * 4) - 1;
+            ufo.vy = -(Math.random() * 5 + 3);
+            ufo.rotation = 0;
+            ufo.rotSpeed = (Math.random() - 0.5) * 0.4;
+            continue; 
+          }
           
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); ufos.length = 0; obstacles.length = 0;
@@ -1568,6 +1407,34 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
       for (let i = obstacles.length - 1; i >= 0; i--) {
         const obs = obstacles[i];
+        
+        if (obs.smashed) {
+          obs.x += obs.vx || 0;
+          obs.y += obs.vy || 0;
+          obs.vy += 0.4; 
+          obs.rotation = (obs.rotation || 0) + (obs.rotSpeed || 0.1);
+          
+          ctx.save();
+          ctx.translate(obs.x + obs.width / 2, obs.y + obs.height / 2);
+          ctx.rotate(obs.rotation);
+          obs.alpha = Math.max(0, (obs.alpha !== undefined ? obs.alpha : 1) - 0.04);
+          ctx.globalAlpha = obs.alpha;
+          
+          const assetImg = obstacleManagerRef.current.getImage(obs.type);
+          if (assetImg && assetImg.complete) {
+            ctx.drawImage(assetImg, -obs.width / 2, -obs.height / 2, obs.width, obs.height);
+          } else {
+            ctx.fillStyle = '#b45309';
+            ctx.fillRect(-obs.width / 2, -obs.height / 2, obs.width, obs.height);
+          }
+          ctx.restore();
+          
+          if (obs.x + obs.width < -50 || obs.y > 450 || obs.alpha <= 0) {
+            obstacles.splice(i, 1);
+          }
+          continue;
+        }
+
         const dynamicSpeed = (isSkillActive('slow') ? obs.speed * 0.6 : obs.speed) * gameSpeedMultiplier;
         obs.x -= dynamicSpeed; 
 
@@ -1608,12 +1475,26 @@ export default function GameScreen({ playerColor, onMainMenu }) {
 
           if (isSkillActive('sprint') || flyEvadeTimerRef.current > 0) { 
             spawnParticles(obs.x, obs.y, '#f59e0b', 6); 
-            obstacles.splice(i, 1); 
+            obs.smashed = true;
+            obs.vx = (Math.random() * 4) - 1;
+            obs.vy = -(Math.random() * 5 + 3);
+            obs.rotation = 0;
+            obs.rotSpeed = (Math.random() - 0.5) * 0.4;
             continue; 
           }
           
           triggerShake(8); 
-          if (shieldCountRef.current > 0) { shieldCountRef.current -= 1; setShieldCount(shieldCountRef.current); spawnParticles(obs.x, obs.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); obstacles.splice(i, 1); continue; }
+          if (shieldCountRef.current > 0) { 
+            shieldCountRef.current -= 1; 
+            setShieldCount(shieldCountRef.current); 
+            spawnParticles(obs.x, obs.y, SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee'); 
+            obs.smashed = true;
+            obs.vx = (Math.random() * 4) - 1;
+            obs.vy = -(Math.random() * 5 + 3);
+            obs.rotation = 0;
+            obs.rotSpeed = (Math.random() - 0.5) * 0.4;
+            continue; 
+          }
           
           if (reviveCountRef.current > 0) {
             reviveCountRef.current -= 1; setReviveCount(reviveCountRef.current); obstacles.length = 0; ufos.length = 0;
@@ -1710,6 +1591,140 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         particlesRef.current.splice(0, particlesRef.current.length - maxParticles);
       }
 
+      // --- FOREGROUND RENDER PASS (Player, Shadows, Auras, and Shields) ---
+      ctx.save();
+      const playerCenterX = player.x + player.width / 2;
+      const heightAboveGround = groundY - (player.y + player.height);
+      const shadowScaleFactor = Math.max(0.3, 1 - heightAboveGround / 160);
+      const shadowAlphaFactor = Math.max(0, 0.35 - heightAboveGround / 240);
+      
+      ctx.beginPath();
+      ctx.ellipse(playerCenterX, groundY, player.width * 0.55 * shadowScaleFactor, player.width * 0.14 * shadowScaleFactor, 0, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlphaFactor})`;
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      const auraPulseFactor = 1 + Math.sin(now / 140) * 0.15;
+      const px = player.x + player.width / 2;
+      const py = player.y + player.height / 2;
+      const auraMaxRadius = player.width * 0.85;
+
+      let assignedAuraStyle = null;
+      if (isSkillActive('sprint')) assignedAuraStyle = 'rgba(239, 68, 68, 0.45)';
+      else if (isSkillActive('sonic')) assignedAuraStyle = 'rgba(34, 211, 238, 0.35)';
+
+      if (assignedAuraStyle) {
+        ctx.beginPath();
+        ctx.arc(px, py, auraMaxRadius * auraPulseFactor, 0, Math.PI * 2);
+        if (isNativeRuntime) {
+          ctx.fillStyle = assignedAuraStyle;
+        } else {
+          const auraGradient = ctx.createRadialGradient(px, py, auraMaxRadius * 0.2, px, py, auraMaxRadius * auraPulseFactor);
+          auraGradient.addColorStop(0, assignedAuraStyle);
+          auraGradient.addColorStop(0.6, hexToRgba(player.color, 0.05));
+          auraGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          ctx.fillStyle = auraGradient;
+        }
+        ctx.fill();
+      }
+      ctx.restore();
+
+      const isNative = isNativeRuntime;
+      const baseChance = isNative ? 0.1 : 0.3;
+      const sprintChance = isNative ? 0.32 : 0.85;
+
+      if (Math.random() < baseChance || (isSkillActive('sprint') && Math.random() < sprintChance)) {
+        const isSprinting = isSkillActive('sprint');
+        particlesRef.current.push({
+          x: player.x + (isSprinting ? 5 : Math.random() * player.width),
+          y: player.y + (isSprinting ? Math.random() * player.height : player.height - Math.random() * 10),
+          vx: isSprinting ? -7 - (Math.random() * 5) : -3 - (Math.random() * 2), 
+          vy: isSprinting ? (Math.random() - 0.5) * 4 : -1 - Math.random() * 2,  
+          radius: isSprinting ? Math.random() * 3.5 + 1.5 : Math.random() * 2 + 1,
+          alpha: 1.0,
+          color: isSprinting ? (Math.random() > 0.4 ? '#ef4444' : '#f97316') : player.color
+        });
+      }
+
+      if (isSkillActive('sprint') && Math.random() < (isNative ? 0.12 : 0.4)) {
+        particlesRef.current.push({
+          x: player.x + player.width + 10,
+          y: player.y + Math.random() * player.height,
+          vx: -13 - Math.random() * 7,
+          vy: 0,
+          radius: Math.random() * 1.5 + 0.5,
+          alpha: 0.65,
+          color: '#ffffff'
+        });
+      }
+
+      if (!isNativeRuntime && isSkillActive('sprint') && sprintTrailsRef.current.length > 0) {
+        sprintTrailsRef.current.forEach((trail, idx) => {
+          ctx.save();
+          ctx.globalAlpha = 0.07 * (idx + 1);
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = '#ef4444'; 
+
+          const trailKey = `${spriteConfig.folder}_${trail.action}_${trail.frameIndex}`;
+          let trailTexture = gameplaySpriteCacheRef.current[trailKey];
+          
+          // 🛠️ FIXED: Removed angle configuration calculations to keep shadow trail particles upright[cite: 4]
+          if (trailTexture && trailTexture.complete && trailTexture.naturalWidth !== 0) {
+            ctx.drawImage(trailTexture, trail.x, trail.y, player.width, player.height);
+          }
+          ctx.restore();
+        });
+      }
+
+      ctx.save();
+      if (!isNativeRuntime) {
+        ctx.shadowBlur = 15; ctx.shadowOffsetY = 6; ctx.shadowOffsetX = 2;
+      }
+      if (isSkillActive('invisible')) {
+        ctx.globalAlpha = 0.4;
+      }
+
+      const textureKey = `${spriteConfig.folder}_${runtimeAction}_${spriteFrameIndex}`;
+      let loadedFrameTexture = gameplaySpriteCacheRef.current[textureKey];
+
+      // 🛠️ FIXED: Removed character translation/rotation for 'fly' to keep sprite straight and horizontal[cite: 4]
+      if (loadedFrameTexture && loadedFrameTexture.complete && loadedFrameTexture.naturalWidth !== 0) {
+        ctx.drawImage(loadedFrameTexture, player.x, player.y, player.width, player.height);
+      } else {
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, player.width, player.height);
+      }
+      ctx.restore();
+
+      if (shieldCountRef.current > 0) {
+        ctx.save();
+        const shieldRadius = 26 + (shieldCountRef.current * 4);
+        const shieldColor = SHIELD_COLOR_MAP[selectedChar.id] || '#22d3ee';
+        const cx = player.x + player.width / 2;
+        const cy = player.y + player.height / 2;
+        const baseAlpha = 0.15 + shieldCountRef.current * 0.06;
+
+        if (!isNativeRuntime) {
+          const gradient = ctx.createRadialGradient(cx, cy, shieldRadius * 0.3, cx, cy, shieldRadius);
+          gradient.addColorStop(0, hexToRgba(shieldColor, 0));
+          gradient.addColorStop(0.7, hexToRgba(shieldColor, baseAlpha));
+          gradient.addColorStop(1, hexToRgba(shieldColor, 0));
+
+          ctx.beginPath();
+          ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
+          ctx.fillStyle = gradient;
+          ctx.fill();
+        }
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, shieldRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = hexToRgba(shieldColor, 0.4 + shieldCountRef.current * 0.1);
+        ctx.lineWidth = 2; if (!isNativeRuntime) { ctx.shadowBlur = 12; ctx.shadowColor = shieldColor; }
+        ctx.stroke();
+        ctx.restore();
+      }
+
       const baseDistanceStep = isSkillActive('sprint') ? 0.4 : 0.15;
       localDistance += baseDistanceStep * gameSpeedMultiplier;
 
@@ -1740,7 +1755,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
   }, [onMainMenu, playerColor, adOverlay, hasUsedAdRevive, isGameOverScreen, assetsLoaded, showCharSelect, selectedChar]); 
 
   return (
-    <div className="relative w-full h-full bg-slate-950 overflow-hidden flex flex-col items-center justify-center">
+    <div className="relative w-full max-w-[1400px] h-full lg:h-auto lg:aspect-[2/1] bg-slate-950 border border-white/10 shadow-2xl overflow-hidden flex flex-col items-center justify-center">
       
       {assetsLoaded && showCharSelect && (
         <div className="absolute inset-0 z-50 w-full h-full">
@@ -1807,7 +1822,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
       <canvas
         ref={canvasRef}
         onClick={() => canvasClickHandler.current && canvasClickHandler.current()}
-        className="w-full h-full bg-slate-950 touch-none cursor-pointer"
+        className="w-full object-contain bg-slate-950 touch-none cursor-pointer"
       />
 
       {/* 🏅 LIVE CLOUD LEADERBOARD OVERLAY */}
