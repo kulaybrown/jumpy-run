@@ -576,7 +576,7 @@ export default function GameScreen({ playerColor, onMainMenu }) {
     try {
       const isNative = Capacitor.isNativePlatform();
       const redirectUrl = isNative 
-        ? 'com.iamthelostworld.jumpyrun://login-callback' 
+        ? 'com.iamthelosworld.jumpyrun://login-callback' 
         : window.location.origin;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
