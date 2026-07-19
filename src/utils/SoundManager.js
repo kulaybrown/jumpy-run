@@ -3,6 +3,7 @@
  * Preloads audio assets from the public folder and provides high-performance,
  * overlapping SFX playback capabilities alongside loopable BGM track controls.
  * Includes automatic browser autoplay unlock handling and real-time settings volume sync.
+ * 📱 Enhanced with native OS lifecycle hooks to handle automatic background suspension.
  */
 
 const SOUNDS_REGISTRY = {
@@ -49,8 +50,10 @@ const VOLUME_CONFIG = {
   'mainmenu-bgm': 0.22   
 };
 
-// Keep track of the currently active BGM globally
+// Keep track of the currently active BGM and playing sound clones
 let activeBGMKey = null;
+let activeSFXClones = new Set();
+let isSuspendedBySystem = false; // Tracks if the game was minimized
 
 /**
  * Helper to calculate dynamic user volume scales combined with master balance profiles
@@ -66,10 +69,8 @@ const getRuntimeVolume = (key, isBGM = false) => {
   const storageKey = isBGM ? 'game_setting_bgm_vol' : 'game_setting_sfx_vol';
   const savedVolumePercent = localStorage.getItem(storageKey);
 
-  // If the user hasn't modified settings yet, default to the master balance mix directly
   if (savedVolumePercent === null) return masterBase;
 
-  // Scale the slider percentage (0 to 100) down to a 0.0 - 1.0 multiplier against master levels
   return (parseInt(savedVolumePercent, 10) / 100) * masterBase;
 };
 
@@ -80,13 +81,15 @@ export const playBGM = (trackName) => {
   if (activeBGMKey === trackName) return; 
 
   stopBGM();
+  activeBGMKey = trackName;
+
+  // If the app is currently minimized, defer the actual playback processing until restore
+  if (isSuspendedBySystem) return;
 
   const newTrack = BGM_REGISTRY[trackName];
   if (newTrack) {
     newTrack.volume = getRuntimeVolume(trackName, true);
     newTrack.currentTime = 0;
-    
-    activeBGMKey = trackName;
 
     newTrack.play().catch((err) => {
       console.log(`🔊 Autoplay restricted "${trackName}". Waiting for first user interaction to unlock.`);
@@ -112,26 +115,106 @@ export const stopBGM = () => {
  * Flawlessly plays short SFX overlapping triggers using cloned nodes.
  */
 export const playSFX = (soundName) => {
+  if (isSuspendedBySystem) return; // Block new sound emission if app is in background
+
   const baseAudio = SOUNDS_REGISTRY[soundName];
   if (!baseAudio) return;
 
   try {
     const soundClone = baseAudio.cloneNode();
     soundClone.volume = getRuntimeVolume(soundName, false);
-    soundClone.play().catch(() => {});
+    
+    activeSFXClones.add(soundClone);
+    soundClone.addEventListener('ended', () => {
+      activeSFXClones.delete(soundClone);
+    });
+
+    soundClone.play().catch(() => {
+      activeSFXClones.delete(soundClone);
+    });
   } catch (error) {
     console.error(`🚨 SoundManager SFX failure on "${soundName}":`, error);
   }
 };
 
 /**
+ * 🔇 Central system pause routines to freeze audio execution instantly
+ */
+const suspendAllAudio = () => {
+  isSuspendedBySystem = true;
+
+  // 1. Pause active BGM line safely without wiping the cache key pointer
+  if (activeBGMKey && BGM_REGISTRY[activeBGMKey]) {
+    BGM_REGISTRY[activeBGMKey].pause();
+  }
+
+  // 2. Halt all active floating audio effect clones instantly
+  activeSFXClones.forEach(clone => {
+    try {
+      clone.pause();
+    } catch (e) {}
+  });
+  activeSFXClones.clear();
+};
+
+/**
+ * 🔊 Central system resume routines to safely fire audio execution back up
+ */
+const restoreAllAudio = () => {
+  if (!isSuspendedBySystem) return;
+  isSuspendedBySystem = false;
+
+  // Restart BGM track if it was playing prior to the window context switch
+  if (activeBGMKey && BGM_REGISTRY[activeBGMKey]) {
+    const currentTrack = BGM_REGISTRY[activeBGMKey];
+    currentTrack.volume = getRuntimeVolume(activeBGMKey, true);
+    currentTrack.play().catch(err => {
+      console.warn("BGM context restore blocked by device power policies:", err);
+    });
+  }
+};
+
+/**
+ * 🛠️ AUTOMATIC LIFECYCLE ROUTER ENGINE
+ */
+if (typeof window !== 'undefined') {
+  // Pass A: Handle Standard Web / PWA layout updates
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      suspendAllAudio();
+    } else {
+      restoreAllAudio();
+    }
+  });
+
+  // Pass B: Handle Native Android / Capacitor container state changes
+  const bindNativeLifecycleEvents = async () => {
+    try {
+      if (window.Capacitor && window.Capacitor.isNativePlatform()) {
+        const { App } = await import('@capacitor/app');
+        
+        App.addListener('appStateChange', (state) => {
+          if (!state.isActive) {
+            suspendAllAudio();
+          } else {
+            restoreAllAudio();
+          }
+        });
+      }
+    } catch (err) {
+      console.warn("Capacitor background interceptor initialization failed:", err);
+    }
+  };
+  
+  bindNativeLifecycleEvents();
+}
+
+/**
  * 🔊 LIVE SETTINGS LISTENER INTERCEPTOR
- * Listens for updates saved from the Settings Modal to dynamically update the volume 
- * of the actively playing track without requiring a music restart.
  */
 if (typeof window !== 'undefined') {
   window.addEventListener('game_settings_updated', () => {
-    if (activeBGMKey && BGM_REGISTRY[activeBGMKey]) {
+    if (activeBGMKey && BGM_REGISTRY[activeBGMKey] && !isSuspendedBySystem) {
       BGM_REGISTRY[activeBGMKey].volume = getRuntimeVolume(activeBGMKey, true);
       console.log(`🎵 Live BGM volume shifted to: ${BGM_REGISTRY[activeBGMKey].volume}`);
     }
@@ -142,7 +225,7 @@ if (typeof window !== 'undefined') {
  * 🔓 GLOBAL BROWSER INTERACTION AUDIO UNLOCKER
  */
 const unlockBrowserAudioContext = () => {
-  if (activeBGMKey && BGM_REGISTRY[activeBGMKey]) {
+  if (activeBGMKey && BGM_REGISTRY[activeBGMKey] && !isSuspendedBySystem) {
     const pendingTrack = BGM_REGISTRY[activeBGMKey];
     if (pendingTrack.paused) {
       pendingTrack.play().catch(() => {});
