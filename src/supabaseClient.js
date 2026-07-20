@@ -1,7 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-// You can find these values in your Supabase Dashboard under Project Settings > API
-const supabaseUrl = 'https://gpbokmsjwuyrbuqmakzt.supabase.co'; 
-const supabaseAnonKey = 'sb_publishable_IhRSph61X6ijEIDrWwgK6Q_DeJGn287';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL; 
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    flowType: 'pkce',          // 👈 added
+    detectSessionInUrl: false, // only the site page should process the OAuth redirect
+    persistSession: true,      // keep reading/writing the shared session normally
+  }
+});

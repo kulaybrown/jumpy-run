@@ -5,32 +5,53 @@ import MainMenu from './pages/MainMenu';
 import CharacterSelect from './pages/CharacterSelect';
 import GameScreen from './pages/GameScreen';
 import { initializeAds } from './utils/AdService';
-import { handleOAuthCallbackUrl } from './utils/OAuthService';
+import { handleAndroidAuthCallback } from './utils/OAuthService';
+import { supabase } from './supabaseClient';
 
 export default function App() {
-  // Game States: 'MENU', 'CHAR_SELECT', 'PLAYING', 'GAME_OVER'
+  // Game States: 'MENU', 'CHAR_SELECT', 'PLAYING'
   const [gameState, setGameState] = useState('MENU');
   const [finalScore, setFinalScore] = useState(0);
   const [finalCoins, setFinalCoins] = useState(0);
+  const [userSession, setUserSession] = useState(null);
   
-  // Keep track of the color chosen (Default to Cyan Blue)
   const [selectedColor, setSelectedColor] = useState('#38bdf8');
 
   useEffect(() => {
     initializeAds();
+
+    // 🌐 DESKTOP & GLOBAL AUTH LISTENER:
+    // This listener automatically catches desktop redirects and updates user sessions cleanly
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      console.log("🌐 Initial getSession() result:", !!session, session); // 👈 debug
+      setUserSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserSession(session);
+      console.log("🔑 Auth state shift synchronized. Event:", _event, "| User logged in:", !!session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
+  // 🤖 ANDROID DEEP-LINK LISTENER:
+  // Catches custom URI callbacks when running as an installed app package
   useEffect(() => {
+    console.log("📱 Is native platform?", Capacitor.isNativePlatform()); // 👈 debug
+
     if (!Capacitor.isNativePlatform()) return undefined;
 
     let listenerHandle;
 
     const registerListener = async () => {
       listenerHandle = await CapacitorApp.addListener('appUrlOpen', ({ url }) => {
-        void handleOAuthCallbackUrl(url).catch((err) => {
-          console.error('Native OAuth callback handling failed:', err);
+        console.log("🔔 appUrlOpen fired with URL:", url); // 👈 debug
+        void handleAndroidAuthCallback(url).catch((err) => {
+          console.error('Android native auth callback execution exception:', err);
         });
       });
+      console.log("✅ appUrlOpen listener registered"); // 👈 debug
     };
 
     void registerListener();
@@ -51,12 +72,6 @@ export default function App() {
     setGameState('PLAYING');
   };
 
-  const triggerGameOver = (score, coins) => {
-    setFinalScore(score);
-    setFinalCoins(coins);
-    setGameState('GAME_OVER');
-  };
-
   return (
     <div className="w-screen h-screen bg-slate-900 text-white flex items-center justify-center overflow-hidden font-sans select-none">
       {gameState === 'MENU' && (
@@ -73,7 +88,6 @@ export default function App() {
       {gameState === 'PLAYING' && (
         <GameScreen playerColor={selectedColor} onMainMenu={() => setGameState('MENU')}  />
       )}
-      
     </div>
   );
 }

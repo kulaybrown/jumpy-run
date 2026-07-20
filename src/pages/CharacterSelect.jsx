@@ -29,7 +29,7 @@ function AnimatedIdleSprite({ folder, fallbackSprite, frameCount = 6 }) {
     return () => clearInterval(interval);
   }, [frameCount, loadFailed]);
 
-  const imagePath = `/assets/animations/${folder}/idle/${currentFrame}.png`;
+  const imagePath = `./assets/animations/${folder}/idle/${currentFrame}.png`;
 
   if (loadFailed) {
     return <div className="text-5xl sm:text-6xl filter drop-shadow-[0_4px_0_rgba(0,0,0,0.15)] animate-bounce [animation-duration:5000ms]">{fallbackSprite}</div>;
@@ -123,13 +123,13 @@ export default function CharacterSelect({ onSelectCharacter, onBack, onStartGame
           
           {/* 📋 BANNER OVERLAY */}
           <div className="flex items-center h-14 sm:h-20 max-w-full drop-shadow-[0_4px_0_rgba(0,0,0,0.35)] image-render-pixelated z-50 -mb-5 translate-y-1 transform">
-            <img src="/assets/banner/left-bg.png" alt="" className="h-full object-contain select-none pointer-events-none" />
+            <img src="./assets/banner/left-bg.png" alt="" className="h-full object-contain select-none pointer-events-none" />
             <div className="h-full flex items-center justify-center px-6 sm:px-12 bg-[url('/assets/banner/fill-bg.png')] bg-repeat-x bg-[length:auto_100%]">
               <h2 className="text-xl sm:text-4xl font-black text-white uppercase tracking-wide drop-shadow-[0_2px_0_rgba(0,0,0,0.85)] text-center whitespace-nowrap mb-2 font-bungee [-webkit-text-stroke:2px_#000000]">
                 Select your runner
               </h2>
             </div>
-            <img src="/assets/banner/right-bg.png" alt="" className="h-full object-contain select-none pointer-events-none" />
+            <img src="./assets/banner/right-bg.png" alt="" className="h-full object-contain select-none pointer-events-none" />
           </div>
 
           {/* 📋 SCOREBOARD PANEL */}

@@ -11,9 +11,9 @@ export class ObstacleManager {
     return new Promise((resolve, reject) => {
       // 1. Define the exact public paths to your assets
       const assetPaths = {
-        wood: '/assets/obstacle-wood.png',
-        rock: '/assets/obstacle-rock.png',
-        spikeyball: '/assets/obstacle-spikeyball.png' // Adjust filenames to match your folder exactly
+        wood: './assets/obstacle-wood.png',
+        rock: './assets/obstacle-rock.png',
+        spikeyball: './assets/obstacle-spikeyball.png' // Adjust filenames to match your folder exactly
       };
 
       const typesToLoad = Object.keys(assetPaths);

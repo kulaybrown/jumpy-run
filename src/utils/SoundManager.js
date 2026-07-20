@@ -7,24 +7,24 @@
  */
 
 const SOUNDS_REGISTRY = {
-  press: new Audio('/assets/audio/press.mp3'),       
-  coin: new Audio('/assets/audio/coin.mp3'),         
-  select: new Audio('/assets/audio/select.mp3'),     
-  click: new Audio('/assets/audio/click.mp3'),       
-  dead: new Audio('/assets/audio/dead.mp3'),
-  explosion: new Audio('/assets/audio/explosion.mp3'), 
-  'sonic-blast': new Audio('/assets/audio/sonic-blast.mp3'), 
-  superman: new Audio('/assets/audio/superman.mp3'), 
-  ufo: new Audio('/assets/audio/ufo.mp3'),
-  bump: new Audio('/assets/audio/bump.mp3'),                 
-  'press-forward': new Audio('/assets/audio/press-forward.mp3'), 
-  'press-back': new Audio('/assets/audio/press-back.mp3')        
+  press: new Audio('./assets/audio/press.mp3'),       
+  coin: new Audio('./assets/audio/coin.mp3'),         
+  select: new Audio('./assets/audio/select.mp3'),     
+  click: new Audio('./assets/audio/press.mp3'),       
+  dead: new Audio('./assets/audio/dead.mp3'),
+  explosion: new Audio('./assets/audio/explosion.mp3'), 
+  'sonic-blast': new Audio('./assets/audio/sonic-blast.mp3'), 
+  superman: new Audio('./assets/audio/superman.mp3'), 
+  ufo: new Audio('./assets/audio/ufo.mp3'),
+  bump: new Audio('./assets/audio/bump.mp3'),                 
+  'press-forward': new Audio('./assets/audio/press-forward.mp3'), 
+  'press-back': new Audio('./assets/audio/press-back.mp3')        
 };
 
 // 📻 Loopable Background Music Registry
 const BGM_REGISTRY = {
-  'game-bgm': new Audio('/assets/audio/game-bgm.mp3'),
-  'mainmenu-bgm': new Audio('/assets/audio/mainmenu-bgm.mp3')
+  'game-bgm': new Audio('./assets/audio/game-bgm.mp3'),
+  'mainmenu-bgm': new Audio('./assets/audio/mainmenu-bgm.mp3')
 };
 
 // Initialize looping attributes on background tracks

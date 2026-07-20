@@ -16,9 +16,9 @@ import { playSFX, playBGM, stopBGM } from '../utils/SoundManager';
 import { Capacitor } from '@capacitor/core';
 
 // Plain static public paths definition
-const farCityImg = '/assets/far-bg.png';
-const midCityImg = '/assets/mid-bg.png';
-const nearCityImg = '/assets/near-bg.png';
+const farCityImg = './assets/far-bg.png';
+const midCityImg = './assets/mid-bg.png';
+const nearCityImg = './assets/near-bg.png';
 
 // --- CONFIGURATION TUNING ---
 const MAX_DAILY_ADS = 3;
@@ -409,10 +409,10 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         for (let i = 0; i < action.frames; i++) {
           const key = `${config.folder}_${action.name}_${i}`;
           const img = new Image();
-          img.src = `/assets/animations/${config.folder}/${action.name}/${i}.png`;
+          img.src = `./assets/animations/${config.folder}/${action.name}/${i}.png`;
           img.onload = checkSpriteLoad;
           img.onerror = () => {
-            img.src = `/assets/animations/${config.folder}/idle/0.png`;
+            img.src = `./assets/animations/${config.folder}/idle/0.png`;
             checkSpriteLoad();
           };
           gameplaySpriteCacheRef.current[key] = img;
@@ -821,9 +821,9 @@ export default function GameScreen({ playerColor, onMainMenu }) {
         const key = `${config.folder}_${action.name}_${i}`;
         if (!gameplaySpriteCacheRef.current[key]) {
           const img = new Image();
-          img.src = `/assets/animations/${config.folder}/${action.name}/${i}.png`;
+          img.src = `./assets/animations/${config.folder}/${action.name}/${i}.png`;
           img.onerror = () => {
-            img.src = `/assets/animations/${config.folder}/idle/0.png`;
+            img.src = `./assets/animations/${config.folder}/idle/0.png`;
           };
           gameplaySpriteCacheRef.current[key] = img;
         }

@@ -39,7 +39,7 @@ export class BackgroundEffects {
     this.supermanImages = [];
     for (let i = 1; i <= 12; i++) {
       const img = new Image();
-      const path = `/assets/animations/superman/${i}.png`;
+      const path = `./assets/animations/superman/${i}.png`;
       img.src = path;
       
       img.onerror = () => {
@@ -53,7 +53,7 @@ export class BackgroundEffects {
     this.ufoImages = [];
     for (let i = 1; i <= 6; i++) {
       const img = new Image();
-      const path = `/assets/animations/ufo/${i}.png`;
+      const path = `./assets/animations/ufo/${i}.png`;
       img.src = path;
       
       img.onerror = () => {
