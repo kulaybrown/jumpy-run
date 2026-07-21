@@ -23,13 +23,13 @@ export default function App() {
     // 🌐 DESKTOP & GLOBAL AUTH LISTENER:
     // This listener automatically catches desktop redirects and updates user sessions cleanly
     supabase.auth.getSession().then(({ data: { session } }) => {
-      console.log("🌐 Initial getSession() result:", !!session, session); // 👈 debug
+      // console.log("🌐 Initial getSession() result:", !!session, session); // 👈 debug
       setUserSession(session);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUserSession(session);
-      console.log("🔑 Auth state shift synchronized. Event:", _event, "| User logged in:", !!session);
+      // console.log("🔑 Auth state shift synchronized. Event:", _event, "| User logged in:", !!session);
     });
 
     return () => subscription.unsubscribe();
@@ -38,7 +38,7 @@ export default function App() {
   // 🤖 ANDROID DEEP-LINK LISTENER:
   // Catches custom URI callbacks when running as an installed app package
   useEffect(() => {
-    console.log("📱 Is native platform?", Capacitor.isNativePlatform()); // 👈 debug
+    // console.log("📱 Is native platform?", Capacitor.isNativePlatform()); // 👈 debug
 
     if (!Capacitor.isNativePlatform()) return undefined;
 

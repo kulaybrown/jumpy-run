@@ -12,9 +12,10 @@ export const initializeAds = async () => {
     } catch (err) {
       console.error("AdMob Native Init Failed:", err);
     }
-  } else {
-    console.log("🌐 Web Testing Environment: Skipping native AdMob init.");
-  }
+  } 
+  // else {
+  //   console.log("🌐 Web Testing Environment: Skipping native AdMob init.");
+  // }
 };
 
 /**
